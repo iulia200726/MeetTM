@@ -17,42 +17,63 @@ function LandingPage() {
   const [issues, setIssues] = useState([]);
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, "issues"), (snap) => {
-      setIssues(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-    });
+    const unsub = onSnapshot(
+      collection(db, "issues"),
+      (snap) => {
+        setIssues(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      },
+      (err) => {
+        console.error("Error listening to issues:", err);
+      }
+    );
     return () => unsub();
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!complaint.trim()) return; // nu trimite text gol / doar spații
+
     setLoading(true);
     setError('');
     setCategory('');
+
     try {
       const response = await fetch('http://localhost:5000/classify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: complaint }),
       });
+
       if (!response.ok) {
         throw new Error('Server error');
       }
+
       const data = await response.json();
       setCategory(data.categorie || 'Unknown');
     } catch (err) {
+      console.error(err);
       setError('A apărut o eroare la trimiterea cererii.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
     <div className="LandingPage">
       <div className="hero">
-        <h1>UrbanTm - your intelligent city</h1>
+        <div className="text_content">
+          <h1>UrbanTm - your intelligent city</h1>
         <p>Report any problem or suggestion to help us improve our city together.</p>
+        </div>
+        
+        <div className="map-view">
+        <h2>View Complaints on Map</h2>
+        <GoogleMapView markers={issues} />
+      </div>
       </div>
 
-      <div className="complaint-form">
+      {/* <div className="complaint-form">
         <h2>Submit a Complaint</h2>
         <form onSubmit={handleSubmit}>
           <textarea
@@ -71,21 +92,12 @@ function LandingPage() {
           </div>
         )}
         {error && (
-          <div className="error-message" style={{color: 'red'}}>
+          <div className="error-message">
             {error}
           </div>
         )}
       </div>
-      
-      <div className="map-view">
-        <h2>View Complaints on Map</h2>
-        <GoogleMapView markers={issues} />
-      </div>
-
-      <div className="navbar-links">
-        <Link to="/login">Login</Link>
-        <Link to="/signup">Signup</Link>
-      </div>
+       */}
     </div>
   );
 }

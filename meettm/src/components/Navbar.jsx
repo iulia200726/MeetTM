@@ -2,10 +2,9 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import "./Navbar.css";
-import Logo from "./img/UrbanAi_logo_transparent.png";
+import Logo from "./img/White_LogoMeetTM_Text.svg";
 import defaultProfile from "./img/default-profile.svg";
-import { getAuth } from "firebase/auth";
-import { getFirestore, doc, getDoc, onSnapshot, collection, query, where } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, collection, query, where } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 
@@ -18,6 +17,7 @@ function Navbar() {
   const [profilePic, setProfilePic] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Poza de profil
   useEffect(() => {
     let unsub;
     const fetchProfilePic = async () => {
@@ -35,7 +35,9 @@ function Navbar() {
       }
     };
     fetchProfilePic();
-    return () => { if (unsub) unsub(); };
+    return () => {
+      if (unsub) unsub();
+    };
   }, [user]);
 
   // Notificări necitite
@@ -53,7 +55,9 @@ function Navbar() {
     } else {
       setUnreadCount(0);
     }
-    return () => { if (unsub) unsub(); };
+    return () => {
+      if (unsub) unsub();
+    };
   }, [user]);
 
   const handleLogout = () => {
@@ -62,38 +66,57 @@ function Navbar() {
   };
 
   return (
-    <div className="navStyle" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-      <ul className="split1">
-        <li>
-          <Link to="/">
-            <img className="logo" src={Logo} alt="Logo" />
-          </Link>
-        </li>
-        <li>
-          <Link to="/news">News</Link>
-        </li>
-      </ul>
-      <nav className="navbar">
-        <ul style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+    <div className="navStyle">
+      {/* 🔹 Stânga: logo */}
+      <div className="nav-left">
+        <Link to="/">
+          <img className="logo" src={Logo} alt="Logo" />
+        </Link>
+      </div>
+
+      {/* 🔹 Centru: LastEvents (ul-ul tău) */}
+      <div className="nav-center">
+        {/* 
+          Aici pui UL-ul tău de LastEvents.
+          Dacă deja ai un <ul> cu ultimele evenimente, îl muți aici.
+          Exemplu minimal:
+        */}
+        <ul className="last-events">
+          <li>
+            <Link to="/news">All Events</Link>
+          </li>
+          <li>
+                <Link to="/dashboard">Open App</Link>
+              </li>
+          {/* Aici poți mappa ultimele evenimente:
+              {lastEvents.map(e => (
+                <li key={e.id}><Link to={`/events/${e.id}`}>{e.title}</Link></li>
+              ))}
+           */}
+        </ul>
+      </div>
+
+      {/* 🔹 Dreapta: restul link-urilor / butoanelor */}
+      <nav className="navbar nav-right">
+        <ul>
           {isAuthenticated ? (
             <>
-              <li>
-                <Link to="/dashboard">Dashboard</Link>
-              </li>
+              
+
+             
+
               <li style={{ position: "relative" }}>
-                <Link to="/notifications" style={{ position: "relative", display: "inline-block" }}>
+                <Link
+                  to="/notifications"
+                  style={{ position: "relative", display: "inline-block" }}
+                >
                   Notifications
                   {unreadCount > 0 && (
                     <span className="notif-badge">{unreadCount}</span>
                   )}
                 </Link>
               </li>
-              <li>
-                <Link to="/account">Account</Link>
-              </li>
-              <li>
-                <button onClick={handleLogout}>Log out</button>
-              </li>
+
               <li>
                 <Link to="/account">
                   <img
@@ -109,6 +132,10 @@ function Navbar() {
                   />
                 </Link>
               </li>
+
+              {/* <li>
+                <button onClick={handleLogout}>Log out</button>
+              </li> */}
             </>
           ) : (
             <>

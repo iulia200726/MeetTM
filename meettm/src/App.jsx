@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 import { LoadScript } from '@react-google-maps/api';
 import Navbar from './components/Navbar.jsx';
@@ -14,6 +14,34 @@ import EventDetails from './components/EventDetails.jsx';
 import Notifications from './components/Notifications.jsx';
 import './App.css';
 
+// 🔹 Background video doar pentru homepage
+function HomeBackgroundVideo() {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = 0; // 🔹 50% mai lent
+    }
+  }, []);
+
+  return (
+    <div className="bg-video-container">
+      <video
+        ref={videoRef}
+        className="bg-video"
+        autoPlay
+        loop
+        muted
+        playsInline
+      >
+        <source src="/videos/BkVideo.mp4" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+    </div>
+  );
+}
+
+
 function AppWrapper() {
   const location = useLocation();
 
@@ -23,12 +51,13 @@ function AppWrapper() {
     } else {
       document.body.classList.remove("homepage-bg");
     }
-    // curățare dacă navighezi rapid între pagini
     return () => document.body.classList.remove("homepage-bg");
   }, [location.pathname]);
 
   return (
     <div className="App">
+      {location.pathname === "/" && <HomeBackgroundVideo />}
+
       <Navbar />
       <Routes>
         <Route path="/" element={<LandingPage />} />

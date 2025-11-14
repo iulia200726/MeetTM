@@ -1,6 +1,28 @@
+/* poți lăsa doar fallback simplu aici */
 .homepage-bg {
-  background: url("./components/img/bkgHero.png") no-repeat center top;
-  background-size: contain;
+  background-color: rgb(123, 41, 167); /* fallback când nu pornește video */
+}
+
+/* ca să permită poziționarea corectă */
+.App {
+  position: relative;
   min-height: 100vh;
-  /* Poți adăuga și alte stiluri dacă vrei, ca să arate perfect pe orice device */
+  overflow-x: hidden;
+}
+
+/* containerul video-ului de background */
+.bg-video-container {
+  position: fixed;    /* acoperă toată fereastra */
+  inset: 0;           /* top:0; right:0; bottom:0; left:0; */
+  z-index: -1;        /* în spatele conținutului */
+  overflow: hidden;
+  pointer-events: none; /* să nu poți da click pe el */
+}
+
+/* video-ul propriu-zis */
+.bg-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.8;       /* 🔹 50% opacitate */
 }
