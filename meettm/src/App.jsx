@@ -22,7 +22,14 @@ function HomeBackgroundVideo() {
 
   useEffect(() => {
     if (videoRef.current) {
-      videoRef.current.playbackRate = 0; // 🔹 50% mai lent
+      const videoEl = videoRef.current;
+      videoEl.playbackRate = 0.8; // 🔹 50% mai lent
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          /* ignore autoplay blocking errors */
+        });
+      }
     }
   }, []);
 

@@ -118,10 +118,6 @@ function Navbar() {
                 <Link to="/news">All Events</Link>
               </li>
 
-              <li>
-                <Link to="/reels">Reels</Link>
-              </li>
-
               {/* 🔹 Account (avatar) + pop-up */}
               <li className="account-li">
                 <Link

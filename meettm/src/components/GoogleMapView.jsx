@@ -3,7 +3,7 @@ import { GoogleMap, LoadScript, HeatmapLayer, InfoWindow } from "@react-google-m
 
 const containerStyle = {
   width: "100%",
-  height: "400px"
+  height: "clamp(280px, 45vh, 420px)"
 };
 
 const CATEGORY_COLORS = {

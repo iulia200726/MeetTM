@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import './cssComponents/LandingPage.css';
 import GoogleMapView from "./GoogleMapView";
 import { getFirestore, collection, onSnapshot } from "firebase/firestore";
@@ -9,23 +9,23 @@ import { Link } from 'react-router-dom';
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Textele afișate în hero, fiecare pe câte un <p>
+// Textele afiÈ™ate Ã®n hero, fiecare pe cÃ¢te un <p>
 const HERO_TEXTS = [
   "Cultural Events",
   "Concerts",
   "Parties",
-  "On MeetTM, you’ll find what suits you",
+  "On MeetTM, youâ€™ll find what suits you",
   "Come and party"
 ];
 
-// pentru a aproxima ~3 secunde la ștergere
+// pentru a aproxima ~3 secunde la È™tergere
 const TOTAL_CHARS = HERO_TEXTS.reduce((sum, t) => sum + t.length, 0);
 const DELETE_DURATION_MS = 3000;
 const DELETE_INTERVAL =
-  TOTAL_CHARS > 0 ? DELETE_DURATION_MS / TOTAL_CHARS : 60; // ms per literă
+  TOTAL_CHARS > 0 ? DELETE_DURATION_MS / TOTAL_CHARS : 60; // ms per literÄƒ
 
-const TYPE_INTERVAL = 120; // ms per literă la scriere
-const LINE_PAUSE = 900;    // pauză între linii la scriere
+const TYPE_INTERVAL = 120; // ms per literÄƒ la scriere
+const LINE_PAUSE = 900;    // pauzÄƒ Ã®ntre linii la scriere
 
 function LandingPage() {
   const [complaint, setComplaint] = useState('');
@@ -34,12 +34,12 @@ function LandingPage() {
   const [error, setError] = useState('');
   const [issues, setIssues] = useState([]);
 
-  // fazele animației: "typing" | "hold" | "deleting" | "pause"
+  // fazele animaÈ›iei: "typing" | "hold" | "deleting" | "pause"
   const [phase, setPhase] = useState("typing");
-  const [currentIndex, setCurrentIndex] = useState(0); // linia curentă
-  const [charIndex, setCharIndex] = useState(0);       // câte caractere sunt afișate din linia curentă
+  const [currentIndex, setCurrentIndex] = useState(0); // linia curentÄƒ
+  const [charIndex, setCharIndex] = useState(0);       // cÃ¢te caractere sunt afiÈ™ate din linia curentÄƒ
 
-  // 📝 TYPEWRITER – scrie textele linie cu linie
+  // ðŸ“ TYPEWRITER â€“ scrie textele linie cu linie
   useEffect(() => {
     if (phase !== "typing") return;
     if (HERO_TEXTS.length === 0) return;
@@ -47,7 +47,7 @@ function LandingPage() {
     const currentText = HERO_TEXTS[currentIndex] || "";
     const isLastLine = currentIndex === HERO_TEXTS.length - 1;
 
-    // dacă suntem pe ultima linie și e complet scrisă → trecem în HOLD
+    // dacÄƒ suntem pe ultima linie È™i e complet scrisÄƒ â†’ trecem Ã®n HOLD
     if (isLastLine && charIndex === currentText.length) {
       setPhase("hold");
       return;
@@ -56,12 +56,12 @@ function LandingPage() {
     let timeout;
 
     if (charIndex < currentText.length) {
-      // scriem linia curentă literă cu literă
+      // scriem linia curentÄƒ literÄƒ cu literÄƒ
       timeout = setTimeout(() => {
         setCharIndex((prev) => prev + 1);
       }, TYPE_INTERVAL);
     } else {
-      // linia curentă e completă, mergem la următoarea după o pauză scurtă
+      // linia curentÄƒ e completÄƒ, mergem la urmÄƒtoarea dupÄƒ o pauzÄƒ scurtÄƒ
       timeout = setTimeout(() => {
         setCurrentIndex((prev) => prev + 1);
         setCharIndex(0);
@@ -71,7 +71,7 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase, currentIndex, charIndex]);
 
-  // 🔁 FAZE: hold (5s) → deleting (~3s) → pause (0.5s) → typing
+  // ðŸ” FAZE: hold (5s) â†’ deleting (~3s) â†’ pause (0.5s) â†’ typing
   useEffect(() => {
     let timeout;
 
@@ -92,7 +92,7 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase]);
 
-  // 🔙 DELETING – șterge literele una câte una, de jos în sus
+  // ðŸ”™ DELETING â€“ È™terge literele una cÃ¢te una, de jos Ã®n sus
   useEffect(() => {
     if (phase !== "deleting") return;
     if (HERO_TEXTS.length === 0) return;
@@ -101,14 +101,14 @@ function LandingPage() {
     let timeout;
 
     if (charIndex > 0) {
-      // ștergem din linia curentă, literă cu literă
+      // È™tergem din linia curentÄƒ, literÄƒ cu literÄƒ
       timeout = setTimeout(() => {
         setCharIndex((prev) => prev - 1);
       }, DELETE_INTERVAL);
     } else {
-      // linia curentă a ajuns la 0 caractere
+      // linia curentÄƒ a ajuns la 0 caractere
       if (currentIndex > 0) {
-        // trecem la linia de deasupra (precedentă), full, apoi o ștergem
+        // trecem la linia de deasupra (precedentÄƒ), full, apoi o È™tergem
         const prevLineIndex = currentIndex - 1;
         const prevLen = HERO_TEXTS[prevLineIndex].length;
 
@@ -117,7 +117,7 @@ function LandingPage() {
           setCharIndex(prevLen);
         }, DELETE_INTERVAL);
       } else {
-        // am șters și prima linie (tot textul e gol)
+        // am È™ters È™i prima linie (tot textul e gol)
         setPhase("pause");
       }
     }
@@ -125,14 +125,14 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase, currentIndex, charIndex]);
 
-  // Ce text afișăm pe linia `index` în funcție de fază
+  // Ce text afiÈ™Äƒm pe linia `index` Ã®n funcÈ›ie de fazÄƒ
   const getDisplayedText = (index) => {
     if (phase === "pause") {
       return "";
     }
 
     if (phase === "hold") {
-      // în hold totul e complet vizibil
+      // Ã®n hold totul e complet vizibil
       return HERO_TEXTS[index];
     }
 
@@ -142,24 +142,24 @@ function LandingPage() {
       } else if (index === currentIndex) {
         return HERO_TEXTS[index].slice(0, charIndex); // linia care se scrie
       } else {
-        return ""; // liniile după cea curentă
+        return ""; // liniile dupÄƒ cea curentÄƒ
       }
     }
 
     if (phase === "deleting") {
       if (index < currentIndex) {
-        return HERO_TEXTS[index]; // încă pline, urmează să fie șterse
+        return HERO_TEXTS[index]; // Ã®ncÄƒ pline, urmeazÄƒ sÄƒ fie È™terse
       } else if (index === currentIndex) {
-        return HERO_TEXTS[index].slice(0, charIndex); // se șterge litera cu litera
+        return HERO_TEXTS[index].slice(0, charIndex); // se È™terge litera cu litera
       } else {
-        return ""; // liniile de dedesubt au fost deja șterse
+        return ""; // liniile de dedesubt au fost deja È™terse
       }
     }
 
     return "";
   };
 
-  // --- Firestore: citire issues pentru hartă ---
+  // --- Firestore: citire issues pentru hartÄƒ ---
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "issues"),
@@ -197,7 +197,7 @@ function LandingPage() {
       setCategory(data.categorie || 'Unknown');
     } catch (err) {
       console.error(err);
-      setError('A apărut o eroare la trimiterea cererii.');
+      setError('A apÄƒrut o eroare la trimiterea cererii.');
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ function LandingPage() {
   return (
     <div className="LandingPage">
       <div className="hero">
-        {/* 🔹 Text stânga */}
+        {/* ðŸ”¹ Text stÃ¢nga */}
         <div className="text_content">
           <div className="hero-lines">
             {HERO_TEXTS.map((text, index) => (
@@ -214,7 +214,7 @@ function LandingPage() {
                 <span className="typewriter-text">
                   {getDisplayedText(index)}
                 </span>
-                {/* cursorul clipește mereu pe linia curentă */}
+                {/* cursorul clipeÈ™te mereu pe linia curentÄƒ */}
                 {index === currentIndex && (
                   <span className="typewriter-cursor">|</span>
                 )}
@@ -224,38 +224,14 @@ function LandingPage() {
 
         </div>
 
-        {/* 🔹 Hartă dreapta */}
+        {/* ðŸ”¹ HartÄƒ dreapta */}
         <div className="map-view">
 
           <GoogleMapView markers={issues} />
-
-          {/* Buton Reels */}
-          <div style={{
-            position: 'absolute',
-            top: 20,
-            right: 20,
-            zIndex: 1000
-          }}>
-            <Link to="/reels">
-              <button style={{
-                background: '#1976d2',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 20,
-                padding: '10px 20px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontSize: 16,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
-              }}>
-                🎥 Reels
-              </button>
-            </Link>
-          </div>
         </div>
       </div>
 
-      {/* Formularul tău rămâne opțional / comentat */}
+      {/* Formularul tÄƒu rÄƒmÃ¢ne opÈ›ional / comentat */}
       {/*
       <div className="complaint-form">
         <h2>Submit a Complaint</h2>
