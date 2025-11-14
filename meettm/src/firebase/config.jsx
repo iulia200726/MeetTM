@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAWhWYEk4lWigmenBhQxe6NSHB22lgBI3Q",
-  authDomain: "urbanmobility-fa873.firebaseapp.com",
-  projectId: "urbanmobility-fa873",
-  storageBucket: "urbanmobility-fa873.firebasestorage.app",
-  messagingSenderId: "52072572088",
-  appId: "1:52072572088:web:aaa7ee4df80c414cae004d",
-  measurementId: "G-GSXZYK2G0E"
+  apiKey: "AIzaSyDNy-6bE_eGG9KnlSIfbL6XnDTpaoQfCvA",
+  authDomain: "mettm-4f8e3.firebaseapp.com",
+  projectId: "mettm-4f8e3",
+  storageBucket: "mettm-4f8e3.firebasestorage.app",
+  messagingSenderId: "443249714816",
+  appId: "1:443249714816:web:80c26d9827e285ed882865",
+  measurementId: "G-Z9S9RR7BY6"
 };
 
 const app = initializeApp(firebaseConfig);
