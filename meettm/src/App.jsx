@@ -13,6 +13,7 @@ import News from './components/News.jsx';
 import EventDetails from './components/EventDetails.jsx';
 import Notifications from './components/Notifications.jsx';
 import EventReelsSection from './components/EventReelsSection.jsx';
+import AIConcierge from './components/AIConcierge.jsx';
 import './App.css';
 
 // 🔹 Background video doar pentru homepage
@@ -71,6 +72,7 @@ function AppWrapper() {
         <Route path="/issue/:id" element={<EventDetails />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/reels" element={<EventReelsSection />} />
+        <Route path="/concierge" element={<AIConcierge />} />
       </Routes>
     </div>
   );

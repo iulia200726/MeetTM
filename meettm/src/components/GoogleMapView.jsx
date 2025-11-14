@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { GoogleMap, LoadScript, Marker, Circle, InfoWindow } from "@react-google-maps/api";
+import React, { useState, useEffect } from "react";
+import { GoogleMap, LoadScript, HeatmapLayer, InfoWindow } from "@react-google-maps/api";
 
 const containerStyle = {
   width: "100%",
@@ -39,7 +39,27 @@ function getCircleOptions(issue) {
 
 function GoogleMapView({ markers = [] }) {
   const [selectedCoords, setSelectedCoords] = useState(null);
+  const [auraData, setAuraData] = useState([]);
   const now = new Date();
+
+  // Fetch aura data on component mount and periodically
+  useEffect(() => {
+    const fetchAuraData = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/event/aura');
+        if (response.ok) {
+          const data = await response.json();
+          setAuraData(data.auraData || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch aura data:', error);
+      }
+    };
+
+    fetchAuraData();
+    const interval = setInterval(fetchAuraData, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Filtrează markerii să fie doar evenimente active
   const activeMarkers = markers.filter(m => {
@@ -99,6 +119,12 @@ function GoogleMapView({ markers = [] }) {
     ]
   };
 
+  // Prepare heatmap data
+  const heatmapData = auraData.map(aura => ({
+    location: new google.maps.LatLng(aura.lat, aura.lng),
+    weight: aura.weight
+  }));
+
   // Problemele de la coordonatele selectate (cu toleranță)
   const selectedIssues = selectedCoords
     ? markers.filter(
@@ -115,17 +141,22 @@ function GoogleMapView({ markers = [] }) {
       zoom={13}
       options={mapOptions}
     >
-      {activeMarkers.map((m, idx) => (
-        <Circle
-          key={idx}
-          center={{ lat: m.lat, lng: m.lng }}
+      {heatmapData.length > 0 && (
+        <HeatmapLayer
+          data={heatmapData}
           options={{
-            ...getCircleOptions(m),
-            clickable: true,
+            radius: 30,
+            opacity: 0.6,
+            gradient: [
+              'rgba(0, 0, 255, 0)',      // blue (low)
+              'rgba(0, 0, 255, 0.3)',
+              'rgba(255, 255, 0, 0.5)',  // yellow (medium)
+              'rgba(255, 0, 0, 0.7)',    // red (high)
+              'rgba(138, 43, 226, 0.9)'  // violet (artistic)
+            ]
           }}
-          onClick={() => setSelectedCoords({ lat: m.lat, lng: m.lng })}
         />
-      ))}
+      )}
       {selectedCoords && (
         <InfoWindow
           position={selectedCoords}

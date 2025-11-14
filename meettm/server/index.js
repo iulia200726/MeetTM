@@ -2,8 +2,18 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
+import admin from "firebase-admin";
 
 dotenv.config();
+
+import fs from "fs";
+const serviceAccount = JSON.parse(fs.readFileSync("./firebase-service-account.json", "utf8"));
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
+const db = admin.firestore();
 
 const app = express();
 app.use(cors());
@@ -155,6 +165,233 @@ app.post("/api/recommendations", async (req, res) => {
   } catch (err) {
     console.error("Recommendations handler error:", err);
     return res.status(500).json({ recommendedIds: [] });
+  }
+});
+
+// Build prompt for night planning
+function buildNightPlanPrompt(events, userPrefs) {
+  const { nrPersoane, buget, mood, zona } = userPrefs;
+  const lines = [];
+  lines.push("You are an AI concierge for planning nights out in Bucharest.");
+  lines.push(`User preferences: ${nrPersoane} people, budget: ${buget}, mood: ${mood}, zone: ${zona}.`);
+  lines.push("Available events:");
+  events.forEach((event, index) => {
+    lines.push(`${index + 1}. ${event.title || event.description} - Category: ${event.category || 'N/A'} - Location: ${event.location || 'N/A'} - Time: ${event.time || 'N/A'} - Price: ${event.price || 'Free'}`);
+  });
+  lines.push("");
+  lines.push("Plan a night with 1-2 events. Return JSON: { \"plan\": [{\"eventId\": \"id\", \"time\": \"HH:MM\", \"reason\": \"why this fits\"}] }");
+  lines.push("Order events logically (e.g., dinner then concert). Keep budget in mind. Output only valid JSON.");
+  return lines.join('\n');
+}
+
+app.post("/api/plan-night", async (req, res) => {
+  try {
+    const { nrPersoane, buget, mood, zona } = req.body;
+    if (!nrPersoane || !buget || !mood || !zona) {
+      return res.status(400).json({ error: "All fields required: nrPersoane, buget, mood, zona" });
+    }
+
+    // Fetch events from Firestore, filter by zona and buget
+    const eventsRef = db.collection('issues');
+    let query = eventsRef;
+    // Assuming zona is a field, filter if possible
+    if (zona !== 'oricare') {
+      query = query.where('location', '>=', zona).where('location', '<=', zona + '\uf8ff'); // simple prefix match
+    }
+    const snapshot = await query.get();
+    const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Filter by budget (assume price is a number or 'Free')
+    const filteredEvents = events.filter(event => {
+      if (event.price === 'Free' || !event.price) return true;
+      const price = parseFloat(event.price);
+      return price <= parseFloat(buget);
+    });
+
+    if (filteredEvents.length === 0) {
+      return res.json({ plan: [] });
+    }
+
+    // Build prompt and call Gemini
+    const prompt = buildNightPlanPrompt(filteredEvents, req.body);
+    let modelText;
+    try {
+      modelText = await callGemini(prompt);
+    } catch (err) {
+      console.error("Gemini call failed:", err.message || err);
+      return res.status(503).json({ plan: [] });
+    }
+
+    // Parse JSON
+    const parsed = extractJsonFromText(modelText);
+    if (parsed && parsed.plan && Array.isArray(parsed.plan)) {
+      return res.json({ plan: parsed.plan.slice(0, 2) }); // max 2 events
+    }
+
+    return res.status(503).json({ plan: [] });
+  } catch (err) {
+    console.error("Plan night handler error:", err);
+    return res.status(500).json({ plan: [] });
+  }
+});
+
+// Event Aura endpoints
+app.post("/api/event/like", async (req, res) => {
+  try {
+    const { eventId, userId } = req.body;
+    if (!eventId || !userId) {
+      return res.status(400).json({ error: "eventId and userId required" });
+    }
+
+    const likeRef = db.collection('event_likes').doc(`${eventId}_${userId}`);
+    await likeRef.set({
+      eventId,
+      userId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Like event error:", err);
+    res.status(500).json({ error: "Failed to record like" });
+  }
+});
+
+app.post("/api/event/checkin", async (req, res) => {
+  try {
+    const { eventId, userId } = req.body;
+    if (!eventId || !userId) {
+      return res.status(400).json({ error: "eventId and userId required" });
+    }
+
+    const checkinRef = db.collection('event_checkins').doc(`${eventId}_${userId}`);
+    await checkinRef.set({
+      eventId,
+      userId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Checkin event error:", err);
+    res.status(500).json({ error: "Failed to record checkin" });
+  }
+});
+
+app.post("/api/event/rate", async (req, res) => {
+  try {
+    const { eventId, userId, rating } = req.body;
+    if (!eventId || !userId || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: "eventId, userId, and rating (1-5) required" });
+    }
+
+    const ratingRef = db.collection('event_ratings').doc(`${eventId}_${userId}`);
+    await ratingRef.set({
+      eventId,
+      userId,
+      rating,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Rate event error:", err);
+    res.status(500).json({ error: "Failed to record rating" });
+  }
+});
+
+app.post("/api/event/noise", async (req, res) => {
+  try {
+    const { eventId, userId, noiseLevel } = req.body;
+    if (!eventId || !userId || typeof noiseLevel !== 'number') {
+      return res.status(400).json({ error: "eventId, userId, and noiseLevel (number) required" });
+    }
+
+    const noiseRef = db.collection('event_noise').doc(`${eventId}_${userId}`);
+    await noiseRef.set({
+      eventId,
+      userId,
+      noiseLevel,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Noise event error:", err);
+    res.status(500).json({ error: "Failed to record noise level" });
+  }
+});
+
+app.get("/api/event/aura", async (req, res) => {
+  try {
+    // Get all events
+    const eventsSnapshot = await db.collection('issues').get();
+    const events = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const auraData = [];
+
+    for (const event of events) {
+      const eventId = event.id;
+
+      // Get likes count
+      const likesSnapshot = await db.collection('event_likes').where('eventId', '==', eventId).get();
+      const likesCount = likesSnapshot.size;
+
+      // Get checkins count
+      const checkinsSnapshot = await db.collection('event_checkins').where('eventId', '==', eventId).get();
+      const checkinsCount = checkinsSnapshot.size;
+
+      // Get average rating
+      const ratingsSnapshot = await db.collection('event_ratings').where('eventId', '==', eventId).get();
+      let avgRating = 0;
+      if (!ratingsSnapshot.empty) {
+        const totalRating = ratingsSnapshot.docs.reduce((sum, doc) => sum + doc.data().rating, 0);
+        avgRating = totalRating / ratingsSnapshot.size;
+      }
+
+      // Get average noise level
+      const noiseSnapshot = await db.collection('event_noise').where('eventId', '==', eventId).get();
+      let avgNoise = 0;
+      if (!noiseSnapshot.empty) {
+        const totalNoise = noiseSnapshot.docs.reduce((sum, doc) => sum + doc.data().noiseLevel, 0);
+        avgNoise = totalNoise / noiseSnapshot.size;
+      }
+
+      // Calculate aura score (0-100)
+      // Weights: likes 20%, checkins 30%, ratings 30%, noise 20%
+      const auraScore = Math.min(100, Math.max(0,
+        (likesCount * 5) +     // 20 likes = 100 points
+        (checkinsCount * 3.33) + // 30 checkins = 100 points
+        (avgRating * 20) +     // 5 rating = 100 points
+        (avgNoise * 2)         // 50 noise = 100 points
+      ));
+
+      // Determine color based on aura and category
+      let color;
+      if (event.category === 'Art & Culture') {
+        color = '#8a2be2'; // violet
+      } else if (auraScore > 80) {
+        color = '#ff0000'; // red
+      } else if (auraScore > 50) {
+        color = '#ffff00'; // yellow
+      } else {
+        color = '#0000ff'; // blue
+      }
+
+      auraData.push({
+        eventId,
+        lat: event.lat,
+        lng: event.lng,
+        auraScore,
+        color,
+        weight: Math.max(0.1, auraScore / 100) // Heatmap weight 0.1-1.0
+      });
+    }
+
+    res.json({ auraData });
+  } catch (err) {
+    console.error("Aura calculation error:", err);
+    res.status(500).json({ error: "Failed to calculate aura" });
   }
 });
 
