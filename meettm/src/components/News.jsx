@@ -5,6 +5,7 @@ import { firebaseConfig } from "../firebase/config.jsx";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import defaultProfile from "./img/default-profile.svg";
+import HypeBadge from "./HypeBadge.jsx";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -182,6 +183,87 @@ function IssueCard({ issue }) {
     setShowCommentInput(false);
   };
 
+  // Calculează hypeStatus din upvotes și views
+  // Compute a hype score based on views, upvotes and how fast they grew (per-hour)
+  function computeHypeScore(issue) {
+    const views = issue.views || 0;
+    const upvotes = issue.upvotes || 0;
+
+    // resolve created timestamp (Firestore Timestamp or number/string)
+    let createdMs = 0;
+    try {
+      if (issue.created && typeof issue.created.toDate === 'function') {
+        createdMs = issue.created.toDate().getTime();
+      } else {
+        createdMs = new Date(issue.created).getTime();
+      }
+    } catch (e) {
+      createdMs = 0;
+    }
+    const ageHours = Math.max(1, (Date.now() - (createdMs || Date.now())) / (1000 * 60 * 60));
+
+    const viewsPerHour = views / ageHours;
+    const upvotesPerHour = upvotes / ageHours;
+
+    // feature transforms
+    const logViews = Math.log1p(views);
+    const logUpvotes = Math.log1p(upvotes);
+
+    // weights - tuneable
+    const W_VPH = 0.6; // weight for views per hour
+    const W_UPH = 1.2; // weight for upvotes per hour
+    const W_LOGV = 0.3; // log views
+    const W_LOGU = 0.5; // log upvotes
+    const DECAY_AGE = 0.05; // mild penalty for older events
+
+    const score = W_VPH * viewsPerHour + W_UPH * upvotesPerHour + W_LOGV * logViews + W_LOGU * logUpvotes - DECAY_AGE * Math.sqrt(ageHours);
+    return { score, viewsPerHour, upvotesPerHour, ageHours };
+  }
+
+  const calculateHypeStatus = () => {
+    // Use computeHypeScore and thresholds to return standardized codes
+    const { score } = computeHypeScore(issue);
+    // Thresholds are tunable; these work well as a starting point
+    if (score >= 15) return "Trending";
+    if (score >= 5) return "Gaining Hype";
+    return "Not Rated Yet";
+  };
+
+  const hypeStatus = issue.hypeStatus || calculateHypeStatus();
+
+  // Debug: log calculated values so you can inspect in browser console
+  useEffect(() => {
+    try {
+      console.debug(
+        "Issue hype:",
+        issue.id,
+        "likes:",
+        issue.upvotes || 0,
+        "views:",
+        issue.views || 0,
+        "hypeStatus firestore:",
+        issue.hypeStatus,
+        "calculated:",
+        hypeStatus
+      );
+    } catch (e) {}
+  }, [issue.id, issue.upvotes, issue.views, issue.hypeStatus, hypeStatus]);
+
+  // helper to style the small status chip
+  const hypeChipStyle = (status) => {
+    const base = {
+      marginLeft: 8,
+      padding: "4px 8px",
+      borderRadius: 12,
+      fontSize: 12,
+      fontWeight: 600,
+      display: "inline-block",
+    };
+    if (status === "Trending") return { ...base, background: "#ffe6f0", color: "#c2185b", border: "1px solid #ffb3d0" };
+    if (status === "Gaining Hype") return { ...base, background: "#fff4e5", color: "#b36b00", border: "1px solid #ffdca8" };
+    return { ...base, background: "#f0f2f5", color: "#333" };
+  };
+
   return (
     <div
       // Elimină onClick de pe container ca să nu trimită la issuedetails când folosești inputul
@@ -280,6 +362,11 @@ function IssueCard({ issue }) {
           >
             {issue.category || "Other"}
           </span>
+          {/* Hype badge + views (shared component) */}
+          <HypeBadge status={hypeStatus} views={issue.views || 0} />
+          {/* (HypeBadge component removed to avoid duplicate display; chip shows status) */}
+          {/* expose calculated status on the element for quick inspection in DOM */}
+          <span style={{ display: "none" }} data-hype-status={hypeStatus} />
         </div>
         {/* Interval dată și oră */}
         {issue.dateStart && issue.dateEnd && issue.hourStart && issue.hourEnd && (

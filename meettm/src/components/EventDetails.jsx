@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
-import { getFirestore, doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs, deleteDoc, addDoc, serverTimestamp, onSnapshot, query, orderBy } from "firebase/firestore";
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, arrayRemove, collection, getDocs, deleteDoc, addDoc, serverTimestamp, onSnapshot, query, orderBy, increment } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config.jsx";
 import { getAuth } from "firebase/auth";
 import defaultProfile from "./img/default-profile.svg";
+import HypeBadge from "./HypeBadge.jsx";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -45,6 +46,8 @@ function EventDetails() {
   const [commentLoading, setCommentLoading] = useState(false);
   const user = getAuth().currentUser;
   const isAdmin = user && user.email === "admin@admin.com";
+  // guard to ensure we only increment views once per component mount
+  const incrementedRef = useRef(false);
 
   useEffect(() => {
     const fetchIssue = async () => {
@@ -59,6 +62,55 @@ function EventDetails() {
         setHasUpvoted(false);
       }
       setCurrentImg(0);
+      // Increment view counter atomically but don't count the event creator's own views.
+      // Use a ref to avoid incrementing twice if this effect runs more than once
+      try {
+        const currentUser = auth.currentUser || user;
+        const shouldCount = !currentUser || currentUser.uid !== data.uid;
+
+        // Use sessionStorage with a short TTL to avoid double-counting from immediate remounts
+        // but still count real revisits. TTL (ms): 3 seconds.
+        const TTL_MS = 3000;
+        const viewerId = currentUser ? currentUser.uid : 'anon';
+        const viewedKey = `viewed_event_${id}_${viewerId}_last`;
+        let alreadyViewed = false;
+        try {
+          const last = parseInt(sessionStorage.getItem(viewedKey) || '0', 10) || 0;
+          const now = Date.now();
+          if (now - last < TTL_MS) alreadyViewed = true;
+        } catch (e) {
+          // sessionStorage may be unavailable in some environments, ignore
+          alreadyViewed = false;
+        }
+
+        console.debug("View increment check:", { id, shouldCount, incremented: incrementedRef.current, alreadyViewed });
+
+        if (shouldCount && !incrementedRef.current && !alreadyViewed) {
+          // Mark timestamp immediately to prevent another immediate mount from also incrementing
+          const now = Date.now();
+          try {
+            sessionStorage.setItem(viewedKey, String(now));
+          } catch (e) {}
+          incrementedRef.current = true;
+          console.debug("Performing view increment (guard set):", { id, viewedKey });
+          try {
+            await updateDoc(docRef, { views: increment(1) });
+            // Update local state so the UI shows the increment immediately
+            setIssue((prev) => ({ ...(prev || {}), views: (prev?.views ?? data.views ?? 0) + 1 }));
+            console.debug("View increment successful for", id);
+          } catch (err) {
+            // revert guards if update fails so a retry is possible
+            try {
+              sessionStorage.removeItem(viewedKey);
+            } catch (e) {}
+            incrementedRef.current = false;
+            console.warn("Could not increment views (reverted guard):", err);
+          }
+        }
+      } catch (err) {
+        // non-blocking: if increment fails, ignore (could be permissions)
+        console.warn("Could not increment views:", err);
+      }
     };
     fetchIssue();
     // eslint-disable-next-line
@@ -214,6 +266,51 @@ function EventDetails() {
 
   if (!issue) return <div style={{ padding: 40 }}>Se încarcă...</div>;
 
+  // Calculează hypeStatus din upvotes și views
+  // Compute a hype score using views, upvotes and growth rate (per-hour) and map to codes
+  function computeHypeScore(issue) {
+    const views = issue.views || 0;
+    const upvotes = issue.upvotes || 0;
+
+    // resolve created timestamp (supports Firestore Timestamp)
+    let createdMs = 0;
+    try {
+      if (issue.created && typeof issue.created.toDate === 'function') {
+        createdMs = issue.created.toDate().getTime();
+      } else {
+        createdMs = new Date(issue.created).getTime();
+      }
+    } catch (e) {
+      createdMs = 0;
+    }
+    const ageHours = Math.max(1, (Date.now() - (createdMs || Date.now())) / (1000 * 60 * 60));
+
+    const viewsPerHour = views / ageHours;
+    const upvotesPerHour = upvotes / ageHours;
+
+    const logViews = Math.log1p(views);
+    const logUpvotes = Math.log1p(upvotes);
+
+    // weights (tuneable)
+    const W_VPH = 0.6;
+    const W_UPH = 1.2;
+    const W_LOGV = 0.3;
+    const W_LOGU = 0.5;
+    const DECAY_AGE = 0.05;
+
+    const score = W_VPH * viewsPerHour + W_UPH * upvotesPerHour + W_LOGV * logViews + W_LOGU * logUpvotes - DECAY_AGE * Math.sqrt(ageHours);
+    return { score, viewsPerHour, upvotesPerHour, ageHours };
+  }
+
+  const calculateHypeStatus = () => {
+    const { score } = computeHypeScore(issue);
+    if (score >= 15) return "Trending";
+    if (score >= 5) return "Gaining Hype";
+    return "Not Rated Yet";
+  };
+
+  const hypeStatus = issue.hypeStatus || calculateHypeStatus();
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem 0" }}>
       {/* Header cu poza de profil și username */}
@@ -351,6 +448,9 @@ function EventDetails() {
       >
         {issue.category || "Other"}
       </div>
+      {/* Hype badge + views (shared component) */}
+      <HypeBadge status={hypeStatus} views={issue.views || 0} />
+      {/* (HypeBadge component removed to avoid duplicate display; chip shows status) */}
       {/* Titlu */}
       <div style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>
         {issue.title}
