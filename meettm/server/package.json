@@ -1,0 +1,19 @@
+{
+  "name": "meettm-recommendations-server",
+  "version": "1.0.0",
+  "description": "Simple server to call Gemini / Generative Language API for event recommendations",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2",
+    "node-fetch": "^3.4.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

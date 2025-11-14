@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { getFirestore, collection, onSnapshot, updateDoc, arrayUnion, arrayRemove, doc, deleteDoc, query, orderBy, addDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config.jsx";
@@ -40,6 +40,9 @@ const CATEGORY_COLORS = {
   "Family & Animals": "#4f9d9d",
   "Other": "#ffdab9"
 };
+
+// Special key to represent the AI recommendations filter
+const AI_CATEGORY_KEY = "__AI_FOR_YOU__";
 
 function IssueCard({ issue }) {
   const navigate = useNavigate();
@@ -524,11 +527,58 @@ function IssueCard({ issue }) {
   );
 }
 
+// --- AI Recommendations (client-side integration) ---------------------------------
+// This code collects lightweight interaction data for the current user (likes +
+// whether the user viewed the event in this session) and asks a backend
+// endpoint (/api/recommendations) to produce a list of recommended issue IDs.
+// If the endpoint is not available, a local fallback ranks events by matching
+// categories the user interacted with most.
+
+async function callRecommendationsApi(interactions) {
+  try {
+    const res = await fetch("/api/recommendations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interactions }),
+    });
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const json = await res.json();
+    // Expecting { recommendedIds: ['id1','id2', ...] } or { recommendations: [issue,...] }
+    if (Array.isArray(json.recommendedIds)) return { ids: json.recommendedIds };
+    if (Array.isArray(json.recommendations)) return { issues: json.recommendations };
+    return { ids: [] };
+  } catch (err) {
+    console.warn("Recommendations API failed, falling back to local ranking:", err);
+    return null; // signal fallback
+  }
+}
+
+// Simple local fallback ranking: score events by how many of the user's
+// interacted categories they match. Liked events and viewed events weigh more.
+function localFallbackRanking(issues, interactions) {
+  const categoryScore = {};
+  interactions.forEach((it) => {
+    if (!it.category) return;
+    const w = (it.liked ? 3 : 0) + (it.viewed ? 1 : 0);
+    categoryScore[it.category] = (categoryScore[it.category] || 0) + w;
+  });
+
+  const scored = issues
+    .map((issue) => ({ issue, score: categoryScore[issue.category] || 0 }))
+    .sort((a, b) => b.score - a.score || (b.issue.upvotes || 0) - (a.issue.upvotes || 0));
+
+  return scored.filter(s => s.score > 0).slice(0, 8).map(s => s.issue);
+}
+
+
 function News() {
   const [issues, setIssues] = useState([]);
   const [sortOrder, setSortOrder] = useState("desc");
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [search, setSearch] = useState("");
+  const [recommendedIssues, setRecommendedIssues] = useState([]);
+  const [recLoading, setRecLoading] = useState(false);
+  const [geminiRecommended, setGeminiRecommended] = useState([]);
 
   useEffect(() => {
     const q = query(collection(db, "issues"), orderBy("created", sortOrder));
@@ -537,6 +587,66 @@ function News() {
     });
     return () => unsub();
   }, [sortOrder]);
+
+  // Build a compact interactions list (title, category, liked:boolean, viewed:boolean)
+  // liked: inferred from upvotedBy for the current user
+  // viewed: inferred from sessionStorage key (the same key used by EventDetails view guard)
+  const buildInteractions = useCallback((allIssues) => {
+    const user = getAuth().currentUser;
+    const viewerId = user ? user.uid : "anon";
+    return allIssues.map((issue) => {
+      const liked = !!(user && issue.upvotedBy && issue.upvotedBy.includes(user.uid));
+      let viewed = false;
+      try {
+        const key = `viewed_event_${issue.id}_${viewerId}_last`;
+        viewed = !!sessionStorage.getItem(key);
+      } catch (e) {}
+      return {
+        id: issue.id,
+        title: issue.title,
+        category: issue.category || null,
+        liked,
+        viewed,
+      };
+    });
+  }, []);
+
+  // Fetch recommendations (backend API if available, otherwise fallback)
+  useEffect(() => {
+    if (!issues || issues.length === 0) return;
+    let mounted = true;
+    (async () => {
+      setRecLoading(true);
+      const interactions = buildInteractions(issues);
+      const apiResult = await callRecommendationsApi(interactions);
+      if (!mounted) return;
+      if (apiResult == null) {
+        // backend unavailable -> keep gemini list empty, use local fallback for the "AI For You" section
+        setGeminiRecommended([]);
+        const fallback = localFallbackRanking(issues, interactions);
+        setRecommendedIssues(fallback);
+        setRecLoading(false);
+        return;
+      }
+
+      // apiResult is present - populate the Gemini-specific list and also set recommendedIssues
+      if (apiResult.issues) {
+        setGeminiRecommended(apiResult.issues);
+        setRecommendedIssues(apiResult.issues);
+      } else if (apiResult.ids) {
+        const recommended = apiResult.ids
+          .map((id) => issues.find((i) => i.id === id))
+          .filter(Boolean);
+        setGeminiRecommended(recommended);
+        setRecommendedIssues(recommended);
+      } else {
+        setGeminiRecommended([]);
+        setRecommendedIssues([]);
+      }
+      setRecLoading(false);
+    })();
+    return () => { mounted = false; };
+  }, [issues, buildInteractions]);
 
   useEffect(() => {
     // Șterge automat evenimentele expirate din Firebase
@@ -549,9 +659,19 @@ function News() {
   }, [issues]);
 
   // Filtrare după categorie
-  let filteredIssues = selectedCategory
-    ? issues.filter((issue) => (issue.category || "Other") === selectedCategory)
-    : issues;
+  // If the special AI badge is selected, show recommendedIssues instead of category-filtered issues
+  let filteredIssues;
+  if (selectedCategory) {
+    if (selectedCategory === AI_CATEGORY_KEY) {
+      // When AI filter is active we render recommendations in the dedicated
+      // AI section above the feed — avoid duplicating them in the main list.
+      filteredIssues = [];
+    } else {
+      filteredIssues = issues.filter((issue) => (issue.category || "Other") === selectedCategory);
+    }
+  } else {
+    filteredIssues = issues;
+  }
 
   // Filtrare după search (titlu, descriere, adresă, categorie)
   if (search.trim()) {
@@ -645,6 +765,27 @@ function News() {
             {cat}
           </button>
         ))}
+        {/* AI For You badge - appears after categories */}
+        <button
+          key="ai-for-you"
+          onClick={() => setSelectedCategory(selectedCategory === AI_CATEGORY_KEY ? null : AI_CATEGORY_KEY)}
+          style={{
+            background: selectedCategory === AI_CATEGORY_KEY ? "#1976d2" : "#f5f6fa",
+            color: selectedCategory === AI_CATEGORY_KEY ? "#fff" : "#222",
+            border: "none",
+            borderRadius: 16,
+            padding: "4px 10px",
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: "pointer",
+            boxShadow: selectedCategory === AI_CATEGORY_KEY ? "0 2px 8px #1976d222" : "none",
+            transition: "all 0.15s",
+            minWidth: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          AI For You
+        </button>
         {selectedCategory && (
           <button
             onClick={() => setSelectedCategory(null)}
@@ -666,6 +807,40 @@ function News() {
           </button>
         )}
       </div>
+      {/* --- Gemini recommendations section --- */}
+      {selectedCategory === AI_CATEGORY_KEY && recLoading && geminiRecommended.length === 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ marginBottom: 12 }}>Recommended for you</h3>
+          <div style={{ color: '#666', marginBottom: 12 }}>Loading recommendations...</div>
+        </div>
+      )}
+
+      {selectedCategory === AI_CATEGORY_KEY && geminiRecommended && geminiRecommended.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ marginBottom: 12 }}>
+            Recommended for you <span style={{ fontSize: 12, color: '#666', marginLeft: 8 }}>Gemini</span>
+          </h3>
+          {geminiRecommended.map((issue) => (
+            <IssueCard key={`gem-${issue.id}`} issue={issue} />
+          ))}
+        </div>
+      )}
+
+      {/* --- Local fallback AI section (shown only when Gemini didn't return results) --- */}
+      {selectedCategory === AI_CATEGORY_KEY && geminiRecommended.length === 0 && recommendedIssues && recommendedIssues.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <h3 style={{ marginBottom: 12 }}>AI For You</h3>
+          {recLoading ? (
+            <div style={{ color: '#666', marginBottom: 12 }}>Loading recommendations...</div>
+          ) : (
+            recommendedIssues.map((issue) => (
+              <IssueCard key={`rec-${issue.id}`} issue={issue} />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Main feed (existing) */}
       {filteredIssues.map((issue) => (
         <IssueCard key={issue.id} issue={issue} />
       ))}
