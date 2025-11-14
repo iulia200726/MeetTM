@@ -1,0 +1,94 @@
+.navStyle {
+  width: 95%;
+  min-height: 12vh;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  background: transparent;
+  margin: auto;
+}
+.logo{
+  height: 8rem;
+}
+.split1{
+  display: flex;
+  align-items: center;
+}
+
+/* Navbar container */
+.navbar {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end; /* mută meniul la dreapta */
+  align-items: center;
+}
+
+.split1{
+  width: 30%;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Navbar list */
+.navbar ul {
+  display: flex;
+  gap: 2rem;         /* spațiere între link-uri */
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Navbar list items */
+.navbar li {
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+/* Navbar links */
+.navbar a, .navbar button {
+  color: #5a52a5;
+  background: none;
+  border: none;
+  text-decoration: none;
+  font-weight: 500;
+  font-family: inherit;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.4rem 1rem;
+  border-radius: 6px;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* Hover efect pentru link-uri și buton */
+.navbar a:hover, .navbar button:hover {
+  color: #fff;
+  background: #988dfb;
+}
+
+/* Responsive (opțional) */
+@media (max-width: 700px) {
+  .navbar ul {
+    gap: 1rem;
+    font-size: 1rem;
+  }
+}
+
+.notif-badge {
+  position: absolute;
+  top: -10px;
+  right: -18px;
+  background: #e53935;
+  color: #fff;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px #0002;
+  border: 2px solid #fff;
+  z-index: 2;
+}

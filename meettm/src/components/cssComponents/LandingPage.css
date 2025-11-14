@@ -1,0 +1,140 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    list-style: none;
+    text-decoration: none;
+}
+
+a {
+    color: black;
+    font-size: 1.3rem;
+}
+
+/* HERO SECTION - Titlu și paragraf */
+.hero {
+    width: 90%;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;    /* Aliniere pe stânga */
+    min-height: 88vh;
+    padding: 2rem 0 2rem 0;
+    text-align: left;           /* Toate textele pe stânga */
+}
+
+.hero h1 {
+    font-size: 2.8rem;
+    margin-bottom: 2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-align: left;           /* Titlul pe stânga */
+}
+
+.hero p {
+    font-size: 1.5rem;
+    padding: 1.5rem 2rem 1.5rem 0;
+    margin-bottom: 2rem;
+    line-height: 1.7;
+    text-align: left;           /* Paragraful pe stânga */
+    max-width: 600px;
+    color: #222;
+}
+
+/* FORM */
+.complaint-form {
+    width: 90%;
+    max-width: 600px;
+    margin: 2rem auto;
+    background: #f7f7fa;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 4px 16px rgba(40,40,40,0.05);
+    text-align: left;          /* Tot form-ul pe stânga */
+}
+
+.complaint-form h2 {
+    font-size: 2rem;
+    margin-bottom: 1.2rem;
+    text-align: left;           /* Titlu pe stânga */
+}
+
+.complaint-form textarea {
+    width: 100%;
+    min-height: 100px;
+    padding: 1.2rem;
+    font-size: 1.2rem;
+    border-radius: 12px;
+    border: 1px solid #ccc;
+    margin-bottom: 1rem;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.complaint-form button {
+    width: 100%;
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.9rem;
+    font-size: 1.15rem;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.complaint-form button:disabled {
+    background: #c0c0c0;
+    cursor: wait;
+}
+
+/* AI Category + Error */
+.ai-category,
+.error-message {
+    margin-top: 1rem;
+    font-size: 1.1rem;
+    text-align: left;           /* Mesajele pe stânga */
+}
+
+/* Map section */
+.map-view {
+    width: 90%;
+    max-width: 900px;
+    margin: 2.5rem auto;
+    background: #f2f6fb;
+    border-radius: 18px;
+    padding: 1.8rem;
+    box-shadow: 0 2px 8px rgba(40,40,40,0.06);
+    text-align: left;           /* Harta și textul pe stânga */
+}
+
+.map-view h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    text-align: left;           /* Titlu pe stânga */
+}
+
+/* Navbar links */
+.navbar-links {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start; /* Links pe stânga */
+    gap: 2rem;
+    margin: 3rem 0 2rem 0;
+}
+
+.navbar-links a {
+    background: #f3f3f8;
+    padding: 0.7rem 1.6rem;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    box-shadow: 0 1px 6px rgba(40,40,40,0.07);
+    transition: background 0.18s;
+    text-align: left;
+}
+
+.navbar-links a:hover {
+    background: #007bff;
+    color: #fff;
+}

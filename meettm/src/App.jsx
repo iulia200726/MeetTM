@@ -1,35 +1,60 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
+import { LoadScript } from '@react-google-maps/api';
+import Navbar from './components/Navbar.jsx';
+import LandingPage from './components/LandingPage.jsx';
+import Login from './components/Login.jsx';
+import Signup from './components/Signup.jsx';
+import Dashboard from './components/Dashboard.jsx';
+import AddEvent from './components/AddEvent.jsx';
+import { AuthProvider } from './AuthContext';
+import Account from './components/Account.jsx';
+import News from './components/News.jsx';
+import EventDetails from './components/EventDetails.jsx';
+import Notifications from './components/Notifications.jsx';
+import './App.css';
 
-function App() {
-  const [count, setCount] = useState(0)
+function AppWrapper() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname === "/") {
+      document.body.classList.add("homepage-bg");
+    } else {
+      document.body.classList.remove("homepage-bg");
+    }
+    // curățare dacă navighezi rapid între pagini
+    return () => document.body.classList.remove("homepage-bg");
+  }, [location.pathname]);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <div className="App">
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/report" element={<AddEvent />} />
+        <Route path="/account" element={<Account />} />
+        <Route path="/news" element={<News />} />
+        <Route path="/issue/:id" element={<EventDetails />} />
+        <Route path="/notifications" element={<Notifications />} />
+      </Routes>
+    </div>
+  );
 }
 
-export default App
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <LoadScript googleMapsApiKey="AIzaSyDW5XKKX0zKaYfddYpTzaF3alj98xMD0fw">
+          <AppWrapper />
+        </LoadScript>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
