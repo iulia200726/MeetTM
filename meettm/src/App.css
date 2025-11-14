@@ -1,28 +1,58 @@
-/* poți lăsa doar fallback simplu aici */
+/* Homepage body background */
 .homepage-bg {
-  background-color: rgb(123, 41, 167); /* fallback când nu pornește video */
+  background-color: rgb(123, 41, 167); /* fallback when the video cannot play */
+  position: relative;
+  min-height: 100vh;
 }
 
-/* ca să permită poziționarea corectă */
+/* Background image layer (slight blur) */
+.homepage-bg::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/img/pexels-mark-angelo-sampan-738078-1587927.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: blur(1px);
+  transform: scale(1.01);
+  z-index: -3;
+  pointer-events: none;
+}
+
+/* Purple overlay layer */
+.homepage-bg::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(
+    rgba(123, 41, 167, 0.65),
+    rgba(123, 41, 167, 0.65)
+  );
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* Keeps page content above fixed background */
 .App {
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-/* containerul video-ului de background */
+/* Background video container */
 .bg-video-container {
-  position: fixed;    /* acoperă toată fereastra */
-  inset: 0;           /* top:0; right:0; bottom:0; left:0; */
-  z-index: -1;        /* în spatele conținutului */
+  position: fixed;
+  inset: 0;
+  z-index: -1;
   overflow: hidden;
-  pointer-events: none; /* să nu poți da click pe el */
+  pointer-events: none;
 }
 
-/* video-ul propriu-zis */
+/* Background video element */
 .bg-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.8;       /* 🔹 50% opacitate */
+  opacity: 0.8;
 }

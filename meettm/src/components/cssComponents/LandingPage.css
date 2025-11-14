@@ -18,22 +18,29 @@ a {
   font-size: 1.3rem;
 }
 
+:root {
+  --nav-height: 7rem;
+}
+
 /* CONTAINER LANDING PAGE */
 .LandingPage {
   width: 100%;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--nav-height, 7rem));
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  padding: clamp(1rem, 4vh, 2.5rem) 7%;
+  gap: 1.5rem;
 }
 
 /* HERO SECTION – text + hartă */
 .hero {
   display: flex;              /* text stânga + hartă dreapta */
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 2.5rem;
-  padding: 3.5rem 7%;
+  width: 100%;
 }
 
 /* textul din stânga */
@@ -160,8 +167,12 @@ a {
 
 /* RESPONSIVE */
 @media (max-width: 900px) {
-  .hero {
+  .LandingPage {
+    min-height: auto;
     padding: 2.5rem 5%;
+  }
+
+  .hero {
     gap: 2rem;
   }
 
@@ -171,10 +182,13 @@ a {
 }
 
 @media (max-width: 600px) {
+  .LandingPage {
+    padding: 2rem 1.5rem;
+  }
+
   .hero {
     flex-direction: column;
     align-items: flex-start;
-    padding: 2rem 1.5rem;
   }
 
   .hero-line {
