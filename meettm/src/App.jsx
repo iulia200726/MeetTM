@@ -12,6 +12,7 @@ import Account from './components/Account.jsx';
 import News from './components/News.jsx';
 import EventDetails from './components/EventDetails.jsx';
 import Notifications from './components/Notifications.jsx';
+import EventReelsSection from './components/EventReelsSection.jsx';
 import './App.css';
 
 // 🔹 Background video doar pentru homepage
@@ -69,6 +70,7 @@ function AppWrapper() {
         <Route path="/news" element={<News />} />
         <Route path="/issue/:id" element={<EventDetails />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/reels" element={<EventReelsSection />} />
       </Routes>
     </div>
   );

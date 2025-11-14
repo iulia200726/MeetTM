@@ -4,6 +4,7 @@ import GoogleMapView from "./GoogleMapView";
 import { getFirestore, collection, onSnapshot } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
+import { Link } from 'react-router-dom';
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -225,8 +226,32 @@ function LandingPage() {
 
         {/* 🔹 Hartă dreapta */}
         <div className="map-view">
-          
+
           <GoogleMapView markers={issues} />
+
+          {/* Buton Reels */}
+          <div style={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            zIndex: 1000
+          }}>
+            <Link to="/reels">
+              <button style={{
+                background: '#1976d2',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 20,
+                padding: '10px 20px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontSize: 16,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+              }}>
+                🎥 Reels
+              </button>
+            </Link>
+          </div>
         </div>
       </div>
 
