@@ -16,6 +16,7 @@ function Navbar() {
   const navigate = useNavigate();
   const [profilePic, setProfilePic] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showAccountMenu, setShowAccountMenu] = useState(false); // 👈 nou
 
   // Poza de profil
   useEffect(() => {
@@ -61,8 +62,19 @@ function Navbar() {
   }, [user]);
 
   const handleLogout = () => {
+    setShowAccountMenu(false);
     logout();
     navigate("/");
+  };
+
+  const handleOpenAccount = () => {
+    setShowAccountMenu(false);
+    navigate("/account");
+  };
+
+  const handleAccountClick = (e) => {
+    e.preventDefault(); // nu mai navigăm direct la /account
+    setShowAccountMenu((prev) => !prev);
   };
 
   return (
@@ -76,23 +88,8 @@ function Navbar() {
 
       {/* 🔹 Centru: LastEvents (ul-ul tău) */}
       <div className="nav-center">
-        {/* 
-          Aici pui UL-ul tău de LastEvents.
-          Dacă deja ai un <ul> cu ultimele evenimente, îl muți aici.
-          Exemplu minimal:
-        */}
         <ul className="last-events">
-          <li>
-            <Link to="/news">All Events</Link>
-          </li>
-          <li>
-                <Link to="/dashboard">Open App</Link>
-              </li>
-          {/* Aici poți mappa ultimele evenimente:
-              {lastEvents.map(e => (
-                <li key={e.id}><Link to={`/events/${e.id}`}>{e.title}</Link></li>
-              ))}
-           */}
+          {/* aici vei pune ultimele evenimente */}
         </ul>
       </div>
 
@@ -101,9 +98,9 @@ function Navbar() {
         <ul>
           {isAuthenticated ? (
             <>
-              
-
-             
+              <li>
+                <Link to="/dashboard">Open App</Link>
+              </li>
 
               <li style={{ position: "relative" }}>
                 <Link
@@ -118,7 +115,16 @@ function Navbar() {
               </li>
 
               <li>
-                <Link to="/account">
+                <Link to="/news">All Events</Link>
+              </li>
+
+              {/* 🔹 Account (avatar) + pop-up */}
+              <li className="account-li">
+                <Link
+                  to="/account"
+                  className="account-link"
+                  onClick={handleAccountClick}
+                >
                   <img
                     src={profilePic || defaultProfile}
                     alt="Profil"
@@ -131,11 +137,26 @@ function Navbar() {
                     }}
                   />
                 </Link>
-              </li>
 
-              {/* <li>
-                <button onClick={handleLogout}>Log out</button>
-              </li> */}
+                {showAccountMenu && (
+                  <div className="account-popup">
+                    <button
+                      type="button"
+                      className="account-popup-item"
+                      onClick={handleOpenAccount}
+                    >
+                      Open your account
+                    </button>
+                    <button
+                      type="button"
+                      className="account-popup-item account-popup-logout"
+                      onClick={handleLogout}
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </li>
             </>
           ) : (
             <>

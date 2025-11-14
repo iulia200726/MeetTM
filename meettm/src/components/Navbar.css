@@ -182,7 +182,6 @@
   .nav-center {
     order: 3;
     justify-content: center;
-    
   }
 
   .last-events {
@@ -208,5 +207,87 @@
   .last-events a {
     font-size: 0.9rem;
     padding: 0.3rem 0.6rem;
+  }
+}
+
+/* ---------- POPUP PT. /ACCOUNT (avatar click) ---------- */
+
+.account-li {
+  position: relative;
+}
+
+.account-link {
+  display: inline-block;
+}
+
+/* containerul mic de sub avatar */
+.account-popup {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+
+  min-width: 190px;
+  padding: 0.4rem;
+
+  background: rgba(10, 8, 30, 0.96);
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+
+  /* animație frumoasă la apariție */
+  animation: accountPopupIn 0.2s ease-out;
+}
+
+/* butoanele din pop-up */
+.account-popup-item {
+  width: 100%;
+
+  /* centrare pe orizontală și verticală */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  text-align: center;
+  white-space: nowrap;          /* nu rupe textul pe 2 rânduri */
+
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+
+  transition: background 0.2s ease, color 0.2s ease, transform 0.1s ease;
+}
+
+.account-popup-item:hover {
+  background: #988dfb;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* stil special pentru Log out */
+.account-popup-logout {
+  color: #ffb3b3;
+}
+
+.account-popup-logout:hover {
+  background: #e53935;
+  color: #fff;
+}
+
+/* animația de apariție a popup-ului */
+@keyframes accountPopupIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
