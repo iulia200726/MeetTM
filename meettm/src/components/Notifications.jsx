@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, orderBy, serverTimestamp } from "firebase/firestore";
-import defaultProfile from "./img/default-profile.svg";
+import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, orderBy, serverTimestamp } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
+import defaultProfile from "./img/default-profile.svg";
+import Navbar from "./Navbar";
+import "./Notifications.css";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -37,7 +39,7 @@ function Notifications() {
 
   useEffect(() => {
     if (!user) return;
-    markedAsRead.current = false; // Resetăm flag-ul la schimbarea userului
+    markedAsRead.current = false; // ResetÄƒm flag-ul la schimbarea userului
     const q = query(
       collection(db, "notifications"),
       where("targetUid", "==", user.uid)
@@ -48,7 +50,7 @@ function Notifications() {
         .sort((a, b) => (b.created?.toMillis?.() || 0) - (a.created?.toMillis?.() || 0));
       setNotifications(notifs);
 
-      // Marchează ca citite doar la prima încărcare
+      // MarcheazÄƒ ca citite doar la prima Ã®ncÄƒrcare
       if (!markedAsRead.current) {
         markedAsRead.current = true;
         snap.docs.forEach((docu) => {
@@ -133,7 +135,7 @@ function Notifications() {
     setFriends(friendsList);
   }, [messages, user]);
 
-  // Grupare notificări după zi/lună
+  // Grupare notificÄƒri dupÄƒ zi/lunÄƒ
   const grouped = { Today: [], Yesterday: [], "This month": [], Earlier: [] };
   const now = new Date();
   const yesterday = new Date();
@@ -235,152 +237,106 @@ function Notifications() {
   };
 
   return (
-    <div style={{ maxWidth: 420, margin: "0 auto", padding: "2rem 0", background: "#fff", borderRadius: 16 }}>
-      {/* Tabs */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div style={{ display: "flex", gap: 20 }}>
-          <button
-            onClick={() => setActiveTab("notifications")}
-            style={{
-              background: "transparent",
-              border: "none",
-              fontSize: 18,
-              fontWeight: activeTab === "notifications" ? 600 : 400,
-              color: activeTab === "notifications" ? "#222" : "#888",
-              cursor: "pointer",
-              padding: "8px 0",
-              borderBottom: activeTab === "notifications" ? "2px solid #1976d2" : "none",
-            }}
-          >
-            Notifications
-          </button>
-          <button
-            onClick={() => setActiveTab("messages")}
-            style={{
-              background: "transparent",
-              border: "none",
-              fontSize: 18,
-              fontWeight: activeTab === "messages" ? 600 : 400,
-              color: activeTab === "messages" ? "#222" : "#888",
-              cursor: "pointer",
-              padding: "8px 0",
-              borderBottom: activeTab === "messages" ? "2px solid #1976d2" : "none",
-            }}
-          >
-            Messages ({friends.length})
-          </button>
+    <div className="notifications-page">
+      <Navbar />
+      <div className="notifications-card">
+        <div className="notifications-tabs">
+          <div className="tab-group">
+            <button
+              onClick={() => setActiveTab("notifications")}
+              className={`tab-btn ${activeTab === "notifications" ? "active" : ""}`}
+            >
+              <span>Notifications</span>
+            </button>
+            <button
+              onClick={() => setActiveTab("messages")}
+              className={`tab-btn ${activeTab === "messages" ? "active" : ""}`}
+            >
+              <span>Messages</span>
+              <span className="tab-pill">{friends.length}</span>
+            </button>
+          </div>
         </div>
+
+        {activeTab === "notifications" && (
+          <div className="notifications-list">
+            {["Today", "Yesterday", "This month", "Earlier"].map((section) =>
+              grouped[section].length > 0 ? (
+                <div key={section} className="notif-section">
+                  <div className="section-heading">
+                    <span className="section-title">{section}</span>
+                    <span className="section-count">{grouped[section].length}</span>
+                  </div>
+                  <div className="section-items">
+                    {grouped[section].map((notif) => (
+                      <NotifItem
+                        key={notif.id}
+                        notif={notif}
+                        onAcceptFriendRequest={handleAcceptFriendRequest}
+                        onDeclineFriendRequest={handleDeclineFriendRequest}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : null
+            )}
+          </div>
+        )}
+
+        {activeTab === "messages" && (
+          <div className="messages-list">
+            {friends.length === 0 ? (
+              <div className="empty-state">
+                <p className="empty-title">No messages yet</p>
+                <p className="empty-subtitle">Conversations will appear here once you start chatting.</p>
+              </div>
+            ) : (
+              friends.map((friend) => (
+                <FriendItem
+                  key={friend.uid}
+                  friend={friend}
+                  onClick={() => navigate(`/messages/${friend.uid}`)}
+                />
+              ))
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Notifications Tab */}
-      {activeTab === "notifications" && (
-        <>
-          {["Today", "Yesterday", "This month", "Earlier"].map((section) =>
-            grouped[section].length > 0 ? (
-              <div key={section} style={{ marginBottom: 18 }}>
-                <div style={{ color: "#888", fontWeight: 600, fontSize: 15, margin: "18px 0 8px 0" }}>{section}</div>
-                {grouped[section].map((notif) => (
-                  <NotifItem
-                    key={notif.id}
-                    notif={notif}
-                    onAcceptFriendRequest={handleAcceptFriendRequest}
-                    onDeclineFriendRequest={handleDeclineFriendRequest}
-                  />
-                ))}
-                <hr style={{ border: "none", borderTop: "1px solid #eee", margin: "18px 0" }} />
-              </div>
-            ) : null
-          )}
-        </>
-      )}
-
-      {/* Messages Tab */}
-      {activeTab === "messages" && (
-        <>
-          {friends.length === 0 ? (
-            <div style={{ textAlign: "center", color: "#888", padding: "2rem" }}>
-              No messages yet.
-            </div>
-          ) : (
-            friends.map((friend) => (
-              <FriendItem
-                key={friend.uid}
-                friend={friend}
-                onClick={() => navigate(`/messages/${friend.uid}`)}
-              />
-            ))
-          )}
-        </>
-      )}
-
-      {/* Reply Modal */}
       {replyModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              background: "#fff",
-              borderRadius: 16,
-              padding: 20,
-              width: "90%",
-              maxWidth: 400,
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px 0" }}>Reply to {replyModal.fromDisplayName}</h3>
-            <textarea
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              placeholder="Type your message..."
-              style={{
-                width: "100%",
-                height: 100,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                padding: 12,
-                fontSize: 14,
-                resize: "none",
-                outline: "none",
-              }}
-            />
-            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+        <div className="reply-backdrop">
+          <div className="reply-modal">
+            <div className="reply-header">
+              <div>
+                <p className="reply-label">Reply to</p>
+                <h3 className="reply-name">{replyModal.fromDisplayName}</h3>
+              </div>
               <button
-                onClick={handleReply}
-                style={{
-                  flex: 1,
-                  background: "#1976d2",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "10px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Send
-              </button>
-              <button
+                className="icon-btn ghost"
                 onClick={() => {
                   setReplyModal(null);
                   setReplyText("");
                 }}
-                style={{
-                  flex: 1,
-                  background: "#eee",
-                  color: "#222",
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "10px",
-                  fontWeight: 600,
-                  cursor: "pointer",
+                aria-label="Close reply modal"
+              >
+                x
+              </button>
+            </div>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Type your message..."
+              className="reply-input"
+            />
+            <div className="reply-actions">
+              <button onClick={handleReply} className="primary-btn">
+                Send
+              </button>
+              <button
+                className="ghost-btn"
+                onClick={() => {
+                  setReplyModal(null);
+                  setReplyText("");
                 }}
               >
                 Cancel
@@ -422,34 +378,16 @@ function NotifItem({ notif, onAcceptFriendRequest, onDeclineFriendRequest }) {
       </>
     );
     actionButton = (
-      <div style={{ display: "flex", gap: 10 }}>
+      <div className="notif-actions">
         <button
           onClick={() => onAcceptFriendRequest(notif.requestId, notif.actorUid, notif.actorUsername)}
-          style={{
-            background: "#4caf50",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "6px 12px",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          className="pill-btn success"
         >
           Accept
         </button>
         <button
           onClick={() => onDeclineFriendRequest(notif.requestId)}
-          style={{
-            background: "#f44336",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "6px 12px",
-            fontWeight: 600,
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          className="pill-btn danger"
         >
           Decline
         </button>
@@ -459,37 +397,23 @@ function NotifItem({ notif, onAcceptFriendRequest, onDeclineFriendRequest }) {
     text = notif.text || "";
   }
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-      <img
-        src={notif.actorProfilePicUrl || defaultProfile}
-        alt="avatar"
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          objectFit: "cover",
-          border: "2px solid #eee",
-        }}
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: "#222", fontSize: 15 }}>{text}</div>
-        <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{timeAgo(notif.created?.toDate?.())}</div>
+    <div className="notif-item">
+      <div className="avatar-ring">
+        <img
+          src={notif.actorProfilePicUrl || defaultProfile}
+          alt="avatar"
+          className="avatar-img"
+        />
       </div>
-      {actionButton}
+      <div className="notif-body">
+        <div className="notif-text">{text}</div>
+        <div className="notif-meta">
+          <span className="notif-time">{timeAgo(notif.created?.toDate?.())}</span>
+        </div>
+        {actionButton}
+      </div>
       {notif.type === "follow" ? (
-        <button
-          style={{
-            background: notif.isFollowing ? "#222" : "#1976d2",
-            color: "#fff",
-            border: "none",
-            borderRadius: 8,
-            padding: "6px 18px",
-            fontWeight: 600,
-            fontSize: 15,
-            cursor: "pointer",
-            minWidth: 80,
-          }}
-        >
+        <button className={`pill-btn ${notif.isFollowing ? "neutral" : "primary"}`}>
           {notif.isFollowing ? "Following" : "Follow"}
         </button>
       ) : null}
@@ -499,38 +423,26 @@ function NotifItem({ notif, onAcceptFriendRequest, onDeclineFriendRequest }) {
 
 function FriendItem({ friend, onClick }) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        marginBottom: 12,
-        padding: "12px",
-        border: "1px solid #eee",
-        borderRadius: 12,
-        cursor: "pointer",
-        background: "#fff",
-      }}
-    >
-      <img
-        src={friend.pic || defaultProfile}
-        alt="avatar"
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          objectFit: "cover",
-          border: "2px solid #eee",
-        }}
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: "#222", fontSize: 15, fontWeight: 600 }}>{friend.name}</div>
-        <div style={{ color: "#555", fontSize: 14, marginTop: 2 }}>{friend.lastMessage}</div>
-        <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{timeAgo(friend.lastTime?.toDate?.())}</div>
+    <div onClick={onClick} className="friend-item">
+      <div className="avatar-ring">
+        <img
+          src={friend.pic || defaultProfile}
+          alt="avatar"
+          className="avatar-img"
+        />
       </div>
+      <div className="friend-body">
+        <div className="friend-name">{friend.name}</div>
+        <div className="friend-message">{friend.lastMessage}</div>
+        <div className="friend-time">{timeAgo(friend.lastTime?.toDate?.())}</div>
+      </div>
+      <span className="friend-cta">Open</span>
     </div>
   );
 }
 
 export default Notifications;
+
+
+
+

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getFirestore, doc, getDoc, addDoc, collection } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,8 @@ import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import { getAuth } from "firebase/auth";
 import defaultProfile from "./img/default-profile.svg";
+import Navbar from "./Navbar.jsx";
+import "./AddEvent.css";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore();
@@ -62,6 +64,12 @@ function AddEvent() {
   const navigate = useNavigate();
   const user = auth.currentUser;
 
+  // Apply the add-event background to the whole page while this view is active
+  useEffect(() => {
+    document.body.classList.add("add-event-bg");
+    return () => document.body.classList.remove("add-event-bg");
+  }, []);
+
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
     let newImages = [...images, ...files];
@@ -84,7 +92,6 @@ function AddEvent() {
     setLoading(true);
     setAddressWarning("");
     try {
-      // 2. Geocode address
       const resp = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
           address
@@ -98,7 +105,7 @@ function AddEvent() {
       for (const result of data.results) {
         const addressComponents = result.address_components.map((c) => c.long_name.toLowerCase());
         const isTimisoara =
-          addressComponents.includes("timișoara") ||
+          addressComponents.includes("timiEToara") ||
           addressComponents.includes("timisoara");
         const { lat, lng } = result.geometry.location;
         if (isTimisoara && isInTimisoaraBounds({ lat, lng })) {
@@ -119,7 +126,6 @@ function AddEvent() {
         setAddressWarning("The address entered also exists in other cities. The address in Timisoara was automatically selected, if it exists.");
       }
 
-      // Validare date și ore
       if (!dateStart || !dateEnd || !hourStart || !hourEnd) {
         setLoading(false);
         alert("Please select the date and hour intervals!");
@@ -174,7 +180,7 @@ function AddEvent() {
         dateEnd,
         hourStart,
         hourEnd,
-        endDateTime: endDateTime.toISOString(), // pentru filtrare/ștergere automată
+        endDateTime: endDateTime.toISOString(), // pentru filtrare/stergere automata
         spotifyPlaylistUrl: spotifyPlaylistUrl.trim() || null,
       });
       navigate("/dashboard");
@@ -185,140 +191,141 @@ function AddEvent() {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ maxWidth: 400, margin: "2rem auto" }}
-    >
-      <h2>Add an event</h2>
-      <input
-        placeholder="Name"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        required
-      />
-      <input
-        placeholder="Address"
-        value={address}
-        onChange={(e) => setAddress(e.target.value)}
-        required
-      />
-      <textarea
-        placeholder="Description"
-        value={desc}
-        onChange={(e) => setDesc(e.target.value)}
-      />
-      {/* Dropdown categorie */}
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          Categoria:
-          <select
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-            style={{ marginLeft: 8, padding: 4, borderRadius: 6, border: "1px solid #ccc" }}
-          >
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          Pictures (max 5):
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageChange}
-            style={{ marginBottom: 8 }}
-          />
-        </label>
-
-        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-          {gallery.map((url, idx) => (
-            <img
-              key={idx}
-              src={url}
-              alt={`preview-${idx}`}
-              style={{
-                width: 60,
-                height: 60,
-                objectFit: "cover",
-                borderRadius: 8,
-                border: "1px solid #ccc"
-              }}
-            />
-          ))}
+    <div className="add-event-page">
+      <Navbar />
+      <div className="add-event-glow glow-purple" />
+      <div className="add-event-glow glow-pink" />
+      <form className="add-event-form" onSubmit={handleSubmit}>
+        <div className="add-event-header">
+          <p className="eyebrow">Live pe MeetTM</p>
+          <h2>Adauga un eveniment memorabil</h2>
+          <p className="lede">
+            Completeaza detaliile si lanseaza-ti evenimentul in vibe-ul electric al Timisoarei.
+          </p>
         </div>
-      </div>
-      {/* Selectare dată și oră */}
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          Start date:
+
+        <div className="field">
+          <label>Titlu</label>
           <input
-            type="date"
-            value={dateStart}
-            onChange={e => setDateStart(e.target.value)}
+            placeholder="Ex: Vernisaj urban, Silent party, Food market"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
             required
-            style={{ marginLeft: 8 }}
           />
-        </label>
-      </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          End date:
+        </div>
+
+        <div className="field">
+          <label>Adresa</label>
           <input
-            type="date"
-            value={dateEnd}
-            onChange={e => setDateEnd(e.target.value)}
+            placeholder="Str. Unirii nr. 1, Timisoara"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
             required
-            style={{ marginLeft: 8 }}
           />
-        </label>
-      </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          Start hour:
-          <input
-            type="time"
-            value={hourStart}
-            onChange={e => setHourStart(e.target.value)}
-            required
-            style={{ marginLeft: 8 }}
+        </div>
+
+        <div className="field">
+          <label>Descriere</label>
+          <textarea
+            placeholder="Spune-ne povestea evenimentului: atmosfera, line-up, surprize..."
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
           />
-        </label>
-      </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          End hour:
-          <input
-            type="time"
-            value={hourEnd}
-            onChange={e => setHourEnd(e.target.value)}
-            required
-            style={{ marginLeft: 8 }}
-          />
-        </label>
-      </div>
-      <div style={{ margin: "1rem 0" }}>
-        <label>
-          Spotify Playlist URL (optional):
+        </div>
+
+        <div className="field">
+          <label>Categorie</label>
+          <div className="select-wrapper">
+            <select value={category} onChange={e => setCategory(e.target.value)}>
+              {CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Galerie (max 5)</label>
+          <div className="upload-row">
+            <input
+              className="file-input"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+            />
+            <p className="muted">Sugestie: cover vibrant + detalii de atmosfera.</p>
+          </div>
+          <div className="gallery-grid">
+            {gallery.map((url, idx) => (
+              <figure key={idx} className="thumb">
+                <img src={url} alt={`preview-${idx}`} />
+              </figure>
+            ))}
+          </div>
+        </div>
+
+        <div className="field-grid">
+          <div className="field">
+            <label>Data start</label>
+            <input
+              type="date"
+              value={dateStart}
+              onChange={e => setDateStart(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label>Data final</label>
+            <input
+              type="date"
+              value={dateEnd}
+              onChange={e => setDateEnd(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="field-grid">
+          <div className="field">
+            <label>Ora start</label>
+            <input
+              type="time"
+              value={hourStart}
+              onChange={e => setHourStart(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label>Ora final</label>
+            <input
+              type="time"
+              value={hourEnd}
+              onChange={e => setHourEnd(e.target.value)}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Spotify Playlist (optional)</label>
           <input
             type="url"
             placeholder="https://open.spotify.com/playlist/..."
             value={spotifyPlaylistUrl}
             onChange={e => setSpotifyPlaylistUrl(e.target.value)}
-            style={{ marginLeft: 8, width: "100%", padding: 4, borderRadius: 6, border: "1px solid #ccc" }}
           />
-        </label>
-      </div>
-      {addressWarning && (
-        <div style={{ color: "red", marginBottom: 8 }}>{addressWarning}</div>
-      )}
-      <button type="submit" disabled={loading}>
-        {loading ? "Sending..." : "Send"}
-      </button>
-    </form>
+        </div>
+
+        {addressWarning && (
+          <div className="warning">{addressWarning}</div>
+        )}
+
+        <button className="primary-btn" type="submit" disabled={loading}>
+          {loading ? "Se trimite..." : "Publica evenimentul"}
+        </button>
+      </form>
+    </div>
   );
 }
 

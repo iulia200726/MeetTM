@@ -69,7 +69,7 @@ function AppWrapper() {
     <div className="App">
       {location.pathname === "/" && <HomeBackgroundVideo />}
 
-      {location.pathname !== "/reels" && <Navbar />}
+      {location.pathname !== "/reels" && location.pathname !== "/report" && location.pathname !== "/notifications" && <Navbar />}
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
