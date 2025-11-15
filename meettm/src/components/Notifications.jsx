@@ -192,6 +192,48 @@ function Notifications() {
     }
   };
 
+  // Handle accept friend request
+  const handleAcceptFriendRequest = async (requestId, fromUid, fromUsername) => {
+    if (!user) return;
+    try {
+      // Update request status
+      await updateDoc(doc(db, "friendRequests", requestId), { status: "accepted" });
+
+      // Add to friends collection
+      await addDoc(collection(db, "friends"), {
+        users: [user.uid, fromUid],
+        createdAt: new Date(),
+      });
+
+      // Create notification for sender
+      await addDoc(collection(db, "notifications"), {
+        type: "friendAccepted",
+        actorUid: user.uid,
+        actorUsername: user.displayName || user.email,
+        targetUid: fromUid,
+        text: `${user.displayName || user.email} accepted your friend request`,
+        read: false,
+        created: new Date(),
+      });
+
+      alert("Friend request accepted!");
+    } catch (e) {
+      console.error("Accept request error:", e);
+      alert("Error accepting request");
+    }
+  };
+
+  // Handle decline friend request
+  const handleDeclineFriendRequest = async (requestId) => {
+    try {
+      await updateDoc(doc(db, "friendRequests", requestId), { status: "declined" });
+      alert("Friend request declined!");
+    } catch (e) {
+      console.error("Decline request error:", e);
+      alert("Error declining request");
+    }
+  };
+
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "2rem 0", background: "#fff", borderRadius: 16 }}>
       {/* Tabs */}
@@ -238,7 +280,12 @@ function Notifications() {
               <div key={section} style={{ marginBottom: 18 }}>
                 <div style={{ color: "#888", fontWeight: 600, fontSize: 15, margin: "18px 0 8px 0" }}>{section}</div>
                 {grouped[section].map((notif) => (
-                  <NotifItem key={notif.id} notif={notif} />
+                  <NotifItem
+                    key={notif.id}
+                    notif={notif}
+                    onAcceptFriendRequest={handleAcceptFriendRequest}
+                    onDeclineFriendRequest={handleDeclineFriendRequest}
+                  />
                 ))}
                 <hr style={{ border: "none", borderTop: "1px solid #eee", margin: "18px 0" }} />
               </div>
@@ -346,9 +393,10 @@ function Notifications() {
   );
 }
 
-function NotifItem({ notif }) {
-  // Tipuri: upvote, comment, reelShared
+function NotifItem({ notif, onAcceptFriendRequest, onDeclineFriendRequest }) {
+  // Tipuri: upvote, comment, reelShared, friendRequest
   let text = "";
+  let actionButton = null;
   if (notif.type === "upvote") {
     text = (
       <>
@@ -366,6 +414,46 @@ function NotifItem({ notif }) {
       <>
         <b>{notif.actorUsername}</b> shared a reel with you.
       </>
+    );
+  } else if (notif.type === "friendRequest") {
+    text = (
+      <>
+        <b>{notif.actorUsername}</b> sent you a friend request.
+      </>
+    );
+    actionButton = (
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          onClick={() => onAcceptFriendRequest(notif.requestId, notif.actorUid, notif.actorUsername)}
+          style={{
+            background: "#4caf50",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "6px 12px",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Accept
+        </button>
+        <button
+          onClick={() => onDeclineFriendRequest(notif.requestId)}
+          style={{
+            background: "#f44336",
+            color: "#fff",
+            border: "none",
+            borderRadius: 8,
+            padding: "6px 12px",
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Decline
+        </button>
+      </div>
     );
   } else {
     text = notif.text || "";
@@ -387,6 +475,7 @@ function NotifItem({ notif }) {
         <div style={{ color: "#222", fontSize: 15 }}>{text}</div>
         <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{timeAgo(notif.created?.toDate?.())}</div>
       </div>
+      {actionButton}
       {notif.type === "follow" ? (
         <button
           style={{
