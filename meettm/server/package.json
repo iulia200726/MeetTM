@@ -2,6 +2,7 @@
   "name": "meettm-recommendations-server",
   "version": "1.0.0",
   "description": "Simple server to call Gemini / Generative Language API for event recommendations",
+  "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node --experimental-json-modules index.js",
