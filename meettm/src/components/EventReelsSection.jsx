@@ -102,6 +102,10 @@ function EventReelsSection({ eventId }) {
   const [selectedFriendIds, setSelectedFriendIds] = useState([]);
   const [shareReel, setShareReel] = useState(null);
   const [activeReelIndex, setActiveReelIndex] = useState(0);
+  const [commentDragOffset, setCommentDragOffset] = useState(0);
+  const [shareToastMessage, setShareToastMessage] = useState("");
+  const [shareToastVisible, setShareToastVisible] = useState(false);
+  const [shareDragOffset, setShareDragOffset] = useState(0);
 
   const videoRef = useRef(null); // recorder preview
   const recorderRef = useRef(null);
@@ -111,6 +115,14 @@ function EventReelsSection({ eventId }) {
   const reelVideoRefs = useRef({}); // pentru play/pause pe fiecare reel
   const reelFeedRef = useRef(null);
   const magnetSnapTimeout = useRef(null);
+  const commentDragStartY = useRef(0);
+  const commentDragActiveReel = useRef(null);
+  const commentDragOffsetRef = useRef(0);
+  const shareToastTimeout = useRef(null);
+  const shareToastDelayTimeout = useRef(null);
+  const shareToastCleanupTimeout = useRef(null);
+  const shareDragStartY = useRef(0);
+  const shareDragOffsetRef = useRef(0);
 
   const snapToReel = useCallback(
     (index, { instant = false } = {}) => {
@@ -152,6 +164,56 @@ function EventReelsSection({ eventId }) {
       container.scrollTo({ top: 0, behavior: "auto" });
     }
   }, [selectedEventId]);
+
+  const handleCommentDragMove = useCallback((e) => {
+    if (!commentDragActiveReel.current) return;
+    const currentY =
+      e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0;
+    const delta = currentY - commentDragStartY.current;
+    const clamped = Math.max(0, delta);
+    commentDragOffsetRef.current = clamped;
+    setCommentDragOffset(clamped);
+  }, []);
+
+  const handleCommentDragEnd = useCallback(() => {
+    if (!commentDragActiveReel.current) return;
+    const shouldClose = commentDragOffsetRef.current > 90;
+    if (shouldClose) {
+      setShowComments(null);
+    }
+    commentDragOffsetRef.current = 0;
+    setCommentDragOffset(0);
+    commentDragActiveReel.current = null;
+    window.removeEventListener("pointermove", handleCommentDragMove);
+    window.removeEventListener("pointerup", handleCommentDragEnd);
+  }, [handleCommentDragMove, setShowComments]);
+
+  const handleCommentDragStart = useCallback(
+    (e, reelId) => {
+      if (showComments !== reelId) return;
+      commentDragActiveReel.current = reelId;
+      commentDragStartY.current =
+        e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0;
+      commentDragOffsetRef.current = 0;
+      setCommentDragOffset(0);
+      window.addEventListener("pointermove", handleCommentDragMove, {
+        passive: true,
+      });
+      window.addEventListener("pointerup", handleCommentDragEnd);
+      if (e.target.setPointerCapture) {
+        e.target.setPointerCapture(e.pointerId);
+      }
+    },
+    [handleCommentDragEnd, handleCommentDragMove, showComments]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (shareToastTimeout.current) clearTimeout(shareToastTimeout.current);
+      if (shareToastDelayTimeout.current) clearTimeout(shareToastDelayTimeout.current);
+      if (shareToastCleanupTimeout.current) clearTimeout(shareToastCleanupTimeout.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!reels.length) {
@@ -480,11 +542,87 @@ function EventReelsSection({ eventId }) {
     );
   };
 
+  const showShareToast = (message) => {
+    if (shareToastTimeout.current) clearTimeout(shareToastTimeout.current);
+    if (shareToastDelayTimeout.current) clearTimeout(shareToastDelayTimeout.current);
+    if (shareToastCleanupTimeout.current) clearTimeout(shareToastCleanupTimeout.current);
+
+    setShareToastVisible(false);
+    setShareToastMessage(message);
+
+    shareToastDelayTimeout.current = setTimeout(() => {
+      setShareToastVisible(true);
+
+      shareToastTimeout.current = setTimeout(() => {
+        setShareToastVisible(false);
+        shareToastCleanupTimeout.current = setTimeout(
+          () => setShareToastMessage(""),
+          260
+        );
+      }, 1500);
+    }, 500);
+  };
+
+  const handleShareDragMove = useCallback((e) => {
+    const currentY =
+      e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0;
+    const delta = currentY - shareDragStartY.current;
+    const clamped = Math.max(0, delta);
+    shareDragOffsetRef.current = clamped;
+    setShareDragOffset(clamped);
+  }, []);
+
+  const handleShareDragEnd = useCallback(() => {
+    const shouldClose = shareDragOffsetRef.current > 90;
+    if (shouldClose) {
+      setShareReel(null);
+      setSelectedFriendIds([]);
+      setShareSearch("");
+    }
+    shareDragOffsetRef.current = 0;
+    setShareDragOffset(0);
+    window.removeEventListener("pointermove", handleShareDragMove);
+    window.removeEventListener("pointerup", handleShareDragEnd);
+  }, [handleShareDragMove]);
+
+  const handleShareDragStart = useCallback(
+    (e) => {
+      if (!shareReel) return;
+      shareDragStartY.current =
+        e.clientY ?? (e.touches && e.touches[0] && e.touches[0].clientY) ?? 0;
+      shareDragOffsetRef.current = 0;
+      setShareDragOffset(0);
+      window.addEventListener("pointermove", handleShareDragMove, {
+        passive: true,
+      });
+      window.addEventListener("pointerup", handleShareDragEnd);
+      if (e.target.setPointerCapture) {
+        e.target.setPointerCapture(e.pointerId);
+      }
+    },
+    [handleShareDragEnd, handleShareDragMove, shareReel]
+  );
+
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", handleCommentDragMove);
+      window.removeEventListener("pointerup", handleCommentDragEnd);
+      window.removeEventListener("pointermove", handleShareDragMove);
+      window.removeEventListener("pointerup", handleShareDragEnd);
+    };
+  }, [handleCommentDragEnd, handleCommentDragMove, handleShareDragEnd, handleShareDragMove]);
+
   // SHARE: send reel to selected friends
   const handleSendReel = async () => {
     const user = auth.currentUser;
-    if (!user) return alert("You must be logged in!");
-    if (!shareReel || selectedFriendIds.length === 0) return;
+    if (!user) return showShareToast("Login required");
+    if (!shareReel) return;
+    if (selectedFriendIds.length === 0) {
+      setShareReel(null);
+      setSelectedFriendIds([]);
+      setShareSearch("");
+      return;
+    }
 
     setShareSending(true);
     try {
@@ -536,11 +674,11 @@ function EventReelsSection({ eventId }) {
       setShareReel(null);
       setSelectedFriendIds([]);
       setShareSearch("");
-      alert("Reel sent to your friends!");
+      showShareToast("Sent");
     } catch (e) {
       console.error("Send reel error:", e);
       setShareSending(false);
-      alert("Failed to send reel. Try again.");
+      showShareToast("Failed to send");
     }
   };
 
@@ -560,8 +698,16 @@ function EventReelsSection({ eventId }) {
         })
       : friends;
 
+  const shouldRenderToast = shareToastMessage || shareToastVisible;
+
   return (
-    <div className="reels-page">       <header className="reels-header">
+    <div className="reels-page">
+      {shouldRenderToast && (
+        <div className={`share-toast ${shareToastVisible ? "show" : ""}`}>
+          {shareToastMessage}
+        </div>
+      )}
+      <header className="reels-header">
         <div className="reels-header-left">
           <button onClick={() => navigate(-1)} className="icon-btn">
             Back
@@ -737,16 +883,29 @@ function EventReelsSection({ eventId }) {
                     </div>
 
                     {showComments === reel.id && (
-                      <div className="comments-sheet">
-                        <div className="comments-drag-handle" />
-                        <div className="comments-header">
-                          <h3 className="comments-title">Comments</h3>
-                          <button
-                            onClick={() => setShowComments(null)}
-                            className="icon-btn icon-btn-muted"
-                          >
-                            X
-                          </button>
+                      <div
+                        className="comments-sheet"
+                        style={{
+                          transform:
+                            commentDragOffset > 0 ? `translateY(${commentDragOffset}px)` : "translateY(0)",
+                          transition:
+                            commentDragOffset > 0 ? "none" : "transform 180ms ease",
+                        }}
+                      >
+                        <div
+                          className="comments-top-region"
+                          onPointerDown={(e) => handleCommentDragStart(e, reel.id)}
+                          role="presentation"
+                        >
+                          <div
+                            className="comments-drag-handle"
+                            role="button"
+                            aria-label="Close comments"
+                          />
+                          <div className="comments-header">
+                            <h3 className="comments-title">Comments</h3>
+                           
+                          </div>
                         </div>
 
                         <div className="comments-list">
@@ -902,10 +1061,21 @@ function EventReelsSection({ eventId }) {
       )}
 
       {shareReel && (
-        <div className="share-modal-overlay">
-          <div className="share-modal">
-            <div className="share-modal-header">
-              <h2 className="share-modal-title">Share reel</h2>
+        <div
+          className="share-sheet"
+          style={{
+            transform: shareDragOffset > 0 ? `translateY(${shareDragOffset}px)` : "translateY(0)",
+            transition: shareDragOffset > 0 ? "none" : "transform 180ms ease",
+          }}
+        >
+          <div
+            className="share-sheet-top"
+            onPointerDown={(e) => handleShareDragStart(e)}
+            role="presentation"
+          >
+            <div className="comments-drag-handle" />
+            <div className="share-sheet-header">
+              <h3 className="comments-title">Share reel</h3>
               <button
                 onClick={() => {
                   setShareReel(null);
@@ -917,85 +1087,85 @@ function EventReelsSection({ eventId }) {
                 X
               </button>
             </div>
+          </div>
 
-            <div className="share-preview">
-              <div className="share-preview-video-wrapper">
-                <video
-                  src={shareReel.videoUrl}
-                  className="share-preview-video"
-                  muted
-                  autoPlay
-                  loop
-                  playsInline
-                />
-              </div>
-              <div className="share-preview-copy">
-                <p className="share-preview-title">Send this reel to your friends.</p>
-                <p className="share-preview-subtitle">Friends will receive it in their inbox.</p>
-              </div>
-            </div>
-
-            <div className="share-search-wrapper">
-              <input
-                type="text"
-                placeholder="Search friends..."
-                value={shareSearch}
-                onChange={(e) => setShareSearch(e.target.value)}
-                className="share-search-input"
+          <div className="share-preview">
+            <div className="share-preview-video-wrapper">
+              <video
+                src={shareReel.videoUrl}
+                className="share-preview-video"
+                muted
+                autoPlay
+                loop
+                playsInline
               />
             </div>
-
-            <div className="share-friend-list">
-              {friendsLoading ? (
-                <p className="share-friend-status">Loading friends...</p>
-              ) : filteredFriends.length === 0 ? (
-                <p className="share-friend-status">No friends found.</p>
-              ) : (
-                filteredFriends.map((f) => {
-                  const isSelected = selectedFriendIds.includes(f.id);
-                  const displayName = f.username || f.displayName || f.email || "User";
-
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => toggleFriendSelect(f.id)}
-                      className={`friend-item ${isSelected ? "selected" : ""}`}
-                    >
-                      <div className="friend-item-content">
-                        <img
-                          src={f.profilePicUrl || defaultProfile}
-                          alt="avatar"
-                          className="friend-avatar"
-                        />
-                        <span className="friend-name">{displayName}</span>
-                      </div>
-                      <div
-                        className={`friend-check ${isSelected ? "selected" : ""}`}
-                      >
-                        {isSelected && "\u2713"}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+            <div className="share-preview-copy">
+              <p className="share-preview-title">Send this reel to your friends.</p>
+              <p className="share-preview-subtitle">Friends will receive it in their inbox.</p>
             </div>
-
-            <button
-              onClick={handleSendReel}
-              disabled={selectedFriendIds.length === 0 || shareSending}
-              className={`share-send-btn ${
-                selectedFriendIds.length === 0 || shareSending ? "disabled" : ""
-              }`}
-            >
-              {shareSending
-                ? "Sending..."
-                : selectedFriendIds.length === 0
-                ? "Choose at least one friend"
-                : `Send to ${selectedFriendIds.length} friend${
-                    selectedFriendIds.length > 1 ? "s" : ""
-                  }`}
-            </button>
           </div>
+
+          <div className="share-search-wrapper">
+            <input
+              type="text"
+              placeholder="Search friends..."
+              value={shareSearch}
+              onChange={(e) => setShareSearch(e.target.value)}
+              className="share-search-input"
+            />
+          </div>
+
+          <div className="share-friend-list">
+            {friendsLoading ? (
+              <p className="share-friend-status">Loading friends...</p>
+            ) : filteredFriends.length === 0 ? (
+              <p className="share-friend-status">No friends found.</p>
+            ) : (
+              filteredFriends.map((f) => {
+                const isSelected = selectedFriendIds.includes(f.id);
+                const displayName = f.username || f.displayName || f.email || "User";
+
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => toggleFriendSelect(f.id)}
+                    className={`friend-item ${isSelected ? "selected" : ""}`}
+                  >
+                    <div className="friend-item-content">
+                      <img
+                        src={f.profilePicUrl || defaultProfile}
+                        alt="avatar"
+                        className="friend-avatar"
+                      />
+                      <span className="friend-name">{displayName}</span>
+                    </div>
+                    <div
+                      className={`friend-check ${isSelected ? "selected" : ""}`}
+                    >
+                      {isSelected && "\u2713"}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <button
+            onClick={handleSendReel}
+            disabled={shareSending}
+            className={`share-send-btn ${
+              selectedFriendIds.length === 0 || shareSending ? "disabled" : ""
+            }`}
+          >
+            {shareSending
+              ? "Sending..."
+              : selectedFriendIds.length === 0
+              ? "Choose at least one friend"
+              : `Send to ${selectedFriendIds.length} friend${
+                  selectedFriendIds.length > 1 ? "s" : ""
+                }`}
+          </button>
         </div>
       )}
     </div>
