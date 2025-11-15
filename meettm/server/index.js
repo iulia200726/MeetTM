@@ -3,6 +3,7 @@ import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
 import admin from "firebase-admin";
+import SpotifyWebApi from "spotify-web-api-node";
 
 dotenv.config();
 
@@ -19,10 +20,16 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "128kb" }));
 
-const PORT = process.env.PORT || 4123;
+const PORT = process.env.PORT || 4124;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_OAUTH_BEARER = process.env.GOOGLE_OAUTH_BEARER;
 const MAX_RECOMMENDATIONS = parseInt(process.env.MAX_RECOMMENDATIONS || "8", 10);
+
+// Spotify API setup
+const spotifyApi = new SpotifyWebApi({
+  clientId: process.env.SPOTIFY_CLIENT_ID,
+  clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
+});
 
 // Simple defensive parser: try to extract JSON object/array from model text
 function extractJsonFromText(text) {
@@ -392,6 +399,156 @@ app.get("/api/event/aura", async (req, res) => {
   } catch (err) {
     console.error("Aura calculation error:", err);
     res.status(500).json({ error: "Failed to calculate aura" });
+  }
+});
+
+// Spotify playlist endpoint
+app.get("/api/spotify/playlist/:playlistId", async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+    if (!playlistId) {
+      return res.status(400).json({ error: "playlistId required" });
+    }
+
+    // Authenticate with Spotify
+    const data = await spotifyApi.clientCredentialsGrant();
+    spotifyApi.setAccessToken(data.body['access_token']);
+
+    // Get playlist tracks
+    const playlistData = await spotifyApi.getPlaylistTracks(playlistId, {
+      limit: 50,
+      fields: 'items(track(name,artists(name),duration_ms,external_urls))'
+    });
+
+    const tracks = playlistData.body.items.map(item => ({
+      name: item.track.name,
+      artists: item.track.artists.map(artist => artist.name).join(', '),
+      duration_ms: item.track.duration_ms,
+      spotify_url: item.track.external_urls.spotify
+    }));
+
+    res.json({ tracks });
+  } catch (err) {
+    console.error("Spotify playlist fetch error:", err.message || err);
+    res.status(500).json({ error: "Failed to fetch playlist tracks" });
+  }
+});
+
+// Get current playing track for an event (simulated based on event time)
+app.get("/api/spotify/current-track/:eventId", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    if (!eventId) {
+      return res.status(400).json({ error: "eventId required" });
+    }
+
+    // Get event data from Firestore
+    const eventDoc = await db.collection('issues').doc(eventId).get();
+    if (!eventDoc.exists) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventDoc.data();
+    if (!event.spotifyPlaylistUrl) {
+      return res.status(400).json({ error: "Event has no Spotify playlist" });
+    }
+
+    // Extract playlist ID from URL
+    const playlistIdMatch = event.spotifyPlaylistUrl.match(/playlist\/([a-zA-Z0-9]+)/);
+    if (!playlistIdMatch) {
+      return res.status(400).json({ error: "Invalid Spotify playlist URL" });
+    }
+    const playlistId = playlistIdMatch[1];
+
+    // Authenticate with Spotify
+    const data = await spotifyApi.clientCredentialsGrant();
+    spotifyApi.setAccessToken(data.body['access_token']);
+
+    // Get playlist tracks
+    const playlistData = await spotifyApi.getPlaylistTracks(playlistId, {
+      limit: 50,
+      fields: 'items(track(name,artists(name),duration_ms,external_urls))'
+    });
+
+    const tracks = playlistData.body.items.filter(item => item.track).map(item => ({
+      name: item.track.name,
+      artists: item.track.artists.map(artist => artist.name).join(', '),
+      duration_ms: item.track.duration_ms,
+      spotify_url: item.track.external_urls.spotify
+    }));
+
+    if (tracks.length === 0) {
+      return res.status(404).json({ error: "No tracks found in playlist" });
+    }
+
+    // Calculate current track based on event start time
+    const now = new Date();
+    const eventStart = new Date(event.dateStart + 'T' + event.hourStart);
+    const eventEnd = new Date(event.dateEnd + 'T' + event.hourEnd);
+
+    if (now < eventStart || now > eventEnd) {
+      return res.json({ currentTrack: null, message: "Event not currently active" });
+    }
+
+    const elapsedMs = now - eventStart;
+    const totalDuration = tracks.reduce((sum, track) => sum + track.duration_ms, 0);
+    const positionMs = elapsedMs % totalDuration;
+
+    let cumulativeMs = 0;
+    let currentTrack = null;
+    for (const track of tracks) {
+      if (positionMs >= cumulativeMs && positionMs < cumulativeMs + track.duration_ms) {
+        currentTrack = track;
+        break;
+      }
+      cumulativeMs += track.duration_ms;
+    }
+
+    res.json({ currentTrack });
+  } catch (err) {
+    console.error("Spotify current track fetch error:", err.message || err);
+    res.status(500).json({ error: "Failed to fetch current track" });
+  }
+});
+
+// Add track to event playlist
+app.post("/api/spotify/add-track/:eventId", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { trackUri } = req.body;
+    if (!eventId || !trackUri) {
+      return res.status(400).json({ error: "eventId and trackUri required" });
+    }
+
+    // Get event data from Firestore
+    const eventDoc = await db.collection('issues').doc(eventId).get();
+    if (!eventDoc.exists) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    const event = eventDoc.data();
+    if (!event.spotifyPlaylistUrl) {
+      return res.status(400).json({ error: "Event has no Spotify playlist" });
+    }
+
+    // Extract playlist ID from URL
+    const playlistIdMatch = event.spotifyPlaylistUrl.match(/playlist\/([a-zA-Z0-9]+)/);
+    if (!playlistIdMatch) {
+      return res.status(400).json({ error: "Invalid Spotify playlist URL" });
+    }
+    const playlistId = playlistIdMatch[1];
+
+    // Authenticate with Spotify
+    const data = await spotifyApi.clientCredentialsGrant();
+    spotifyApi.setAccessToken(data.body['access_token']);
+
+    // Add track to playlist
+    await spotifyApi.addTracksToPlaylist(playlistId, [trackUri]);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Spotify add track error:", err.message || err);
+    res.status(500).json({ error: "Failed to add track to playlist" });
   }
 });
 

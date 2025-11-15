@@ -327,6 +327,28 @@ function IssueCard({ issue }) {
         <div style={{ color: "#444", fontSize: 15, marginBottom: 8, whiteSpace: "pre-line" }} onClick={() => navigate(`/issue/${issue.id}`)}>
           {issue.desc}
         </div>
+        {/* Spotify Playlist */}
+        {issue.spotifyPlaylistUrl && (
+          <div style={{ margin: "8px 0" }} onClick={() => navigate(`/issue/${issue.id}`)}>
+            <a
+              href={issue.spotifyPlaylistUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "#1db954",
+                textDecoration: "none",
+                fontWeight: 500,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 14,
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span role="img" aria-label="spotify">🎵</span> Spotify Playlist
+            </a>
+          </div>
+        )}
         {/* Imagine atașată */}
         {allImages.length > 0 && (
           <div style={{ margin: "10px 0", borderRadius: 16, overflow: "hidden", border: "1px solid #eee" }} onClick={() => navigate(`/issue/${issue.id}`)}>

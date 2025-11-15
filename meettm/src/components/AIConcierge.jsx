@@ -25,7 +25,7 @@ function AIConcierge() {
     setPlan(null);
 
     try {
-      const response = await fetch('http://localhost:4123/api/plan-night', {
+      const response = await fetch('http://localhost:4124/api/plan-night', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

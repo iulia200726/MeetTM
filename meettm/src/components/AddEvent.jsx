@@ -58,6 +58,7 @@ function AddEvent() {
   const [dateEnd, setDateEnd] = useState("");
   const [hourStart, setHourStart] = useState("");
   const [hourEnd, setHourEnd] = useState("");
+  const [spotifyPlaylistUrl, setSpotifyPlaylistUrl] = useState("");
   const navigate = useNavigate();
   const user = auth.currentUser;
 
@@ -174,6 +175,7 @@ function AddEvent() {
         hourStart,
         hourEnd,
         endDateTime: endDateTime.toISOString(), // pentru filtrare/ștergere automată
+        spotifyPlaylistUrl: spotifyPlaylistUrl.trim() || null,
       });
       navigate("/dashboard");
     } catch (err) {
@@ -295,6 +297,18 @@ function AddEvent() {
             onChange={e => setHourEnd(e.target.value)}
             required
             style={{ marginLeft: 8 }}
+          />
+        </label>
+      </div>
+      <div style={{ margin: "1rem 0" }}>
+        <label>
+          Spotify Playlist URL (optional):
+          <input
+            type="url"
+            placeholder="https://open.spotify.com/playlist/..."
+            value={spotifyPlaylistUrl}
+            onChange={e => setSpotifyPlaylistUrl(e.target.value)}
+            style={{ marginLeft: 8, width: "100%", padding: 4, borderRadius: 6, border: "1px solid #ccc" }}
           />
         </label>
       </div>

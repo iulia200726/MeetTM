@@ -44,6 +44,11 @@ function EventDetails() {
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+  const [currentTrack, setCurrentTrack] = useState(null);
+  const [trackLoading, setTrackLoading] = useState(false);
+  const [playlistTracks, setPlaylistTracks] = useState([]);
+  const [playlistLoading, setPlaylistLoading] = useState(false);
+  const [newSong, setNewSong] = useState("");
   const user = getAuth().currentUser;
   const isAdmin = user && user.email === "admin@admin.com";
   // guard to ensure we only increment views once per component mount
@@ -133,6 +138,36 @@ function EventDetails() {
     });
     return () => unsub();
   }, [id]);
+
+  // Fetch current track and playlist tracks when component mounts or issue changes
+  useEffect(() => {
+    const fetchSpotifyData = async () => {
+      if (!issue || !issue.spotifyPlaylistUrl) return;
+      setTrackLoading(true);
+      setPlaylistLoading(true);
+      try {
+        // Fetch current track
+        const trackResponse = await fetch(`http://localhost:4124/api/spotify/current-track/${id}`);
+        if (trackResponse.ok) {
+          const trackData = await trackResponse.json();
+          setCurrentTrack(trackData.currentTrack);
+        }
+
+        // Fetch playlist tracks
+        const playlistResponse = await fetch(`http://localhost:4124/api/spotify/playlist/${id}`);
+        if (playlistResponse.ok) {
+          const playlistData = await playlistResponse.json();
+          setPlaylistTracks(playlistData.tracks || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch Spotify data:", err);
+      } finally {
+        setTrackLoading(false);
+        setPlaylistLoading(false);
+      }
+    };
+    fetchSpotifyData();
+  }, [id, issue]);
 
   const handleUpvote = async () => {
     if (!user) return alert("You must be logged in to like!");
@@ -261,6 +296,36 @@ function EventDetails() {
       });
     } catch (err) {
       console.error("Eroare la trimiterea notificării:", err);
+    }
+  };
+
+  const handleAddSong = async () => {
+    if (!user) return alert("You must be logged in to add songs!");
+    if (!newSong.trim()) return alert("Please enter a Spotify track URI!");
+    try {
+      const response = await fetch(`http://localhost:4124/api/spotify/add-track/${id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ trackUri: newSong.trim() }),
+      });
+      if (response.ok) {
+        alert("Song added successfully!");
+        setNewSong("");
+        // Optionally refresh playlist tracks
+        const playlistResponse = await fetch(`http://localhost:4124/api/spotify/playlist/${id}`);
+        if (playlistResponse.ok) {
+          const playlistData = await playlistResponse.json();
+          setPlaylistTracks(playlistData.tracks || []);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Failed to add song: ${error.error}`);
+      }
+    } catch (err) {
+      console.error("Error adding song:", err);
+      alert("Error adding song to playlist");
     }
   };
 
@@ -502,6 +567,105 @@ function EventDetails() {
         <div style={{ color: "#444", marginTop: 6 }}>{issue.desc}</div>
       </div>
       <hr />
+      {/* Spotify Playlist */}
+      {issue.spotifyPlaylistUrl && (
+        <div style={{ margin: "18px 0" }}>
+          <b>Spotify Playlist</b>
+          <div style={{ marginTop: 6 }}>
+            {(() => {
+              const playlistIdMatch = issue.spotifyPlaylistUrl.match(/playlist\/([a-zA-Z0-9]+)/);
+              const playlistId = playlistIdMatch ? playlistIdMatch[1] : null;
+              return playlistId ? (
+                <iframe
+                  src={`https://open.spotify.com/embed/playlist/${playlistId}`}
+                  width="100%"
+                  height="380"
+                  frameBorder="0"
+                  allowTransparency="true"
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  style={{ borderRadius: 12 }}
+                ></iframe>
+              ) : (
+                <a
+                  href={issue.spotifyPlaylistUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: "#1db954",
+                    textDecoration: "none",
+                    fontWeight: 500,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <span role="img" aria-label="spotify">🎵</span> Open in Spotify
+                </a>
+              );
+            })()}
+          </div>
+          {/* Current Track Display */}
+          {trackLoading ? (
+            <div style={{ marginTop: 6, fontSize: 14, color: "#888" }}>Loading current track...</div>
+          ) : currentTrack ? (
+            <div style={{ marginTop: 6, fontSize: 14, color: "#444" }}>
+              <b>Now Playing:</b> {currentTrack.name} by {currentTrack.artists?.map(a => a.name).join(', ')}
+            </div>
+          ) : null}
+          {/* Playlist Tracks Display */}
+          {playlistLoading ? (
+            <div style={{ marginTop: 6, fontSize: 14, color: "#888" }}>Loading playlist tracks...</div>
+          ) : playlistTracks.length > 0 ? (
+            <div style={{ marginTop: 6 }}>
+              <b>Playlist Tracks:</b>
+              <ul style={{ marginTop: 4, paddingLeft: 20, fontSize: 14, color: "#444" }}>
+                {playlistTracks.slice(0, 10).map((track, index) => (
+                  <li key={index}>
+                    {track.name} by {track.artists?.map(a => a.name).join(', ')}
+                  </li>
+                ))}
+                {playlistTracks.length > 10 && (
+                  <li>... and {playlistTracks.length - 10} more tracks</li>
+                )}
+              </ul>
+            </div>
+          ) : null}
+          {/* Add Song to Playlist */}
+          {user && (
+            <div style={{ marginTop: 12 }}>
+              <input
+                type="text"
+                placeholder="Enter Spotify track URI to add song"
+                value={newSong}
+                onChange={(e) => setNewSong(e.target.value)}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 20,
+                  border: "1px solid #ccc",
+                  fontSize: 14,
+                  width: "70%",
+                  marginRight: 8,
+                }}
+              />
+              <button
+                onClick={handleAddSong}
+                style={{
+                  background: "#1db954",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "8px 16px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Add Song
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {/* Buton Upvote și Comentarii */}
       <div style={{ display: "flex", gap: 16, marginTop: 24, alignItems: "center" }}>
         <button
