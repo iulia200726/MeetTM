@@ -227,12 +227,18 @@ function IssueCard({ issue }) {
     // Use computeHypeScore and thresholds to return standardized codes
     const { score } = computeHypeScore(issue);
     // Thresholds are tunable; these work well as a starting point
-    if (score >= 15) return "Trending";
-    if (score >= 5) return "Gaining Hype";
+    if (score >= 55) return "Trending";
+    if (score >= 2) return "Gaining Hype";
     return "Not Rated Yet";
   };
 
-  const hypeStatus = issue.hypeStatus || calculateHypeStatus();
+  // compute hype details once per render so we don't call computeHypeScore twice
+  const hypeDetails = computeHypeScore(issue);
+  // Prefer the freshly computed status (from live metrics). Fall back to stored issue.hypeStatus
+  const computedStatus = hypeDetails?.score != null
+    ? (hypeDetails.score >= 5 ? "Trending" : (hypeDetails.score >= 2 ? "Gaining Hype" : "Not Rated Yet"))
+    : null;
+  const hypeStatus = computedStatus || issue.hypeStatus || calculateHypeStatus();
 
   // Debug: log calculated values so you can inspect in browser console
   useEffect(() => {
@@ -366,7 +372,7 @@ function IssueCard({ issue }) {
             {issue.category || "Other"}
           </span>
           {/* Hype badge + views (shared component) */}
-          <HypeBadge status={hypeStatus} views={issue.views || 0} />
+          <HypeBadge status={hypeStatus} views={issue.views || 0} details={hypeDetails} />
           {/* (HypeBadge component removed to avoid duplicate display; chip shows status) */}
           {/* expose calculated status on the element for quick inspection in DOM */}
           <span style={{ display: "none" }} data-hype-status={hypeStatus} />

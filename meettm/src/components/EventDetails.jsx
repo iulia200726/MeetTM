@@ -304,12 +304,18 @@ function EventDetails() {
 
   const calculateHypeStatus = () => {
     const { score } = computeHypeScore(issue);
-    if (score >= 15) return "Trending";
-    if (score >= 5) return "Gaining Hype";
+    if (score >= 5) return "Trending";
+    if (score >= 2) return "Gaining Hype";
     return "Not Rated Yet";
   };
 
-  const hypeStatus = issue.hypeStatus || calculateHypeStatus();
+  // compute full details once so we can pass them to the badge for tooltip/debug
+  const hypeDetails = computeHypeScore(issue);
+  // Prefer the freshly computed status (from live metrics). Fall back to stored issue.hypeStatus
+  const computedStatus = hypeDetails?.score != null
+    ? (hypeDetails.score >= 55 ? "Trending" : (hypeDetails.score >= 2 ? "Gaining Hype" : "Not Rated Yet"))
+    : null;
+  const hypeStatus = computedStatus || issue.hypeStatus || calculateHypeStatus();
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto", padding: "2rem 0" }}>
@@ -448,8 +454,8 @@ function EventDetails() {
       >
         {issue.category || "Other"}
       </div>
-      {/* Hype badge + views (shared component) */}
-      <HypeBadge status={hypeStatus} views={issue.views || 0} />
+  {/* Hype badge + views (shared component) */}
+  <HypeBadge status={hypeStatus} views={issue.views || 0} details={hypeDetails} />
       {/* (HypeBadge component removed to avoid duplicate display; chip shows status) */}
       {/* Titlu */}
       <div style={{ fontWeight: 700, fontSize: 22, marginBottom: 8 }}>
