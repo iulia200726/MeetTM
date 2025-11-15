@@ -23,7 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "128kb" }));
 
-const PORT = process.env.PORT || 4123;
+const PORT = process.env.PORT || 4124;
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const GOOGLE_OAUTH_BEARER = process.env.GOOGLE_OAUTH_BEARER;
 const MAX_RECOMMENDATIONS = parseInt(
@@ -134,32 +134,149 @@ function buildPrompt(interactions, maxResults = MAX_RECOMMENDATIONS) {
   return lines.join("\n");
 }
 
-// Build prompt for night planning
+// Build prompt for night planning (Gemini must select only from provided events)
 function buildNightPlanPrompt(events, userPrefs) {
   const { nrPersoane, buget, mood, zona } = userPrefs;
   const lines = [];
-  lines.push("You are an AI concierge for planning nights out in Bucharest.");
+  lines.push('Esti "AI Concierge" pentru viata de noapte din Bucuresti / Timisoara.');
+  lines.push("Alegi doar din lista de evenimente de mai jos, nu inventezi alte locuri.");
   lines.push(
-    `User preferences: ${nrPersoane} people, budget: ${buget}, mood: ${mood}, zone: ${zona}.`
+    `Preferinte user: ${nrPersoane} persoane, buget=${buget} (mic/mediu/mare), mood=${mood} (chill/party/cultural/live-music), zona=${zona}.`
   );
-  lines.push("Available events:");
-  events.forEach((event, index) => {
-    lines.push(
-      `${index + 1}. ${
-        event.title || event.description
-      } - Category: ${event.category || "N/A"} - Location: ${
-        event.location || "N/A"
-      } - Time: ${event.time || "N/A"} - Price: ${event.price || "Free"}`
-    );
-  });
   lines.push("");
   lines.push(
-    'Plan a night with 1-2 events. Return JSON: { "plan": [{"eventId": "id", "time": "HH:MM", "reason": "why this fits"}] }'
+    'Returneaza DOAR JSON valid: { "events": [ { "eventId": "<id din lista>", "time": "HH:MM", "title": "Titlu", "location": "Adresa/Zona", "reason": "De ce il recomanzi (1-2 fraze)" } ] }'
   );
-  lines.push(
-    "Order events logically (e.g., dinner then concert). Keep budget in mind. Output only valid JSON."
-  );
+  lines.push("Include 3-4 pasi: warm-up, 1-2 principale, after. Pastreaza ordinea cronologica.");
+  lines.push("Evenimente disponibile (alege DOAR de aici):");
+  events.forEach((event, index) => {
+    lines.push(
+      `${index + 1}. [${event.id}] ${event.title || "Fara titlu"} | cat=${
+        event.category || event.type || "N/A"
+      } | zona=${event.address || event.location || "N/A"} | ${event.dateStart || ""} ${
+        event.hourStart || ""
+      } -> ${event.dateEnd || ""} ${event.hourEnd || ""}`
+    );
+  });
   return lines.join("\n");
+}
+
+function buildFallbackPlanFromEvents(events, userPrefs = {}) {
+  const safeEvents = Array.isArray(events) ? events.filter(Boolean) : [];
+  if (!safeEvents.length) return [];
+
+  const mood = userPrefs.mood || "";
+  const reasonByMood = {
+    party: "Energie buna si muzica potrivita mood-ului tau.",
+    "live-music": "Are muzica live si vibe relaxat.",
+    cultural: "Activitate culturala accesibila si prietenoasa.",
+    chill: "Atmosfera cozy pentru discutii si social.",
+  };
+
+  return safeEvents.slice(0, 4).map((ev, idx) => ({
+    eventId: ev.id,
+    time:
+      ev.hourStart ||
+      ev.time ||
+      (idx === 0 ? "19:30" : idx === 1 ? "21:00" : "23:00"),
+    title: ev.title || "Eveniment",
+    location: ev.address || ev.location || "Locatie nedefinita",
+    reason: ev.description || reasonByMood[mood] || "Recomandat in functie de preferintele tale.",
+  }));
+}
+
+async function fetchConciergeIssues(limit = 50) {
+  try {
+    const snap = await db
+      .collection("issues")
+      .orderBy("created", "desc")
+      .limit(limit)
+      .get();
+    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (err) {
+    console.warn(
+      "Failed to order issues by created, fallback to simple fetch:",
+      err.message || err
+    );
+    const snap = await db.collection("issues").limit(limit).get();
+    return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  }
+}
+
+function matchesZone(event, zona) {
+  if (!zona || zona === "oricare") return true;
+  const hay = `${event.address || ""} ${event.location || ""}`.toLowerCase();
+  return hay.includes(zona.toLowerCase());
+}
+
+function matchesBudget(event, buget) {
+  if (!buget) return true;
+  const maxPrice = buget === "mic" ? 60 : buget === "mediu" ? 150 : 99999;
+  const price = Number(
+    event.price || event.ticketPrice || event.cost || event.entryFee
+  );
+  if (!price || Number.isNaN(price)) return true;
+  return price <= maxPrice;
+}
+
+function buildGenericFallback(userPrefs = {}) {
+  const { zona, mood } = userPrefs;
+  const zoneLabel = {
+    centru: "Centru",
+    "old-town": "Lipscani / Old Town",
+    bellu: "Bellu",
+    dorobanti: "Dorobanti",
+  }[zona] || "zona centrala";
+
+  const mainByMood = {
+    party: {
+      time: "21:30",
+      title: "Club / DJ set",
+      location: `${zoneLabel} - club/loc cu DJ local`,
+      reason: "Energie buna pentru dans si socializare.",
+    },
+    "live-music": {
+      time: "21:00",
+      title: "Pub cu muzica live",
+      location: `${zoneLabel} - scena live`,
+      reason: "Concert mic pentru vibe live si bauturi.",
+    },
+    cultural: {
+      time: "20:00",
+      title: "Teatru / expozitie de seara",
+      location: `${zoneLabel} - locatie indoor`,
+      reason: "Activitate culturala accesibila in zona.",
+    },
+    chill: {
+      time: "21:00",
+      title: "Wine bar / terasa chill",
+      location: `${zoneLabel} - terasa cu muzica soft`,
+      reason: "Setting relaxat pentru conversatii linistite.",
+    },
+  };
+
+  const main = mainByMood[mood] || {
+    time: "21:00",
+    title: "Eveniment principal",
+    location: `${zoneLabel} - spatiu popular seara`,
+    reason: "Optiune versatila potrivita preferintelor.",
+  };
+
+  return [
+    {
+      time: "19:30",
+      title: "Warm-up la bistro/bar cozy",
+      location: `${zoneLabel} - usor de gasit pentru tot grupul`,
+      reason: "Punct de intalnire si planificare a serii.",
+    },
+    main,
+    {
+      time: "23:30",
+      title: "After & social",
+      location: `${zoneLabel} - lounge/pub deschis pana tarziu`,
+      reason: "Pentru a continua seara intr-un ritm lejer.",
+    },
+  ];
 }
 
 // ========= GEMINI ROUTES =========
@@ -227,58 +344,76 @@ app.post("/api/recommendations", async (req, res) => {
 
 app.post("/api/plan-night", async (req, res) => {
   try {
-    const { nrPersoane, buget, mood, zona } = req.body;
+    const { nrPersoane, buget, mood, zona } = req.body || {};
     if (!nrPersoane || !buget || !mood || !zona) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "All fields required: nrPersoane, buget, mood, zona",
-        });
+      return res.status(400).json({
+        error: "All fields required: nrPersoane, buget, mood, zona",
+      });
     }
 
-    const eventsRef = db.collection("issues");
-    let q = eventsRef;
+    // Fetch events from Firestore (same list shown in News/EventDetails)
+    const issues = await fetchConciergeIssues(60);
+    const filteredEvents = issues.filter(
+      (ev) => matchesZone(ev, zona) && matchesBudget(ev, buget)
+    );
 
-    if (zona !== "oricare") {
-      q = q
-        .where("location", ">=", zona)
-        .where("location", "<=", zona + "\uf8ff");
-    }
-    const snapshot = await q.get();
-    const events = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    const filteredEvents = events.filter((event) => {
-      if (event.price === "Free" || !event.price) return true;
-      const price = parseFloat(event.price);
-      return price <= parseFloat(buget);
-    });
-
-    if (filteredEvents.length === 0) {
-      return res.json({ plan: [] });
-    }
-
-    const prompt = buildNightPlanPrompt(filteredEvents, req.body);
-    let modelText;
+    const prompt = buildNightPlanPrompt(
+      filteredEvents.length ? filteredEvents : issues,
+      req.body
+    );
+    let modelText = "";
     try {
       modelText = await callGemini(prompt);
     } catch (err) {
       console.error("Gemini call failed:", err.message || err);
-      return res.status(503).json({ plan: [] });
     }
 
     const parsed = extractJsonFromText(modelText);
-    if (parsed && parsed.plan && Array.isArray(parsed.plan)) {
-      return res.json({ plan: parsed.plan.slice(0, 2) });
+    let events = [];
+    if (parsed) {
+      if (Array.isArray(parsed.events)) events = parsed.events;
+      else if (Array.isArray(parsed.plan)) events = parsed.plan;
+      else if (Array.isArray(parsed)) events = parsed;
     }
 
-    return res.status(503).json({ plan: [] });
+    const allowedEvents = filteredEvents.length ? filteredEvents : issues;
+    const allowedById = allowedEvents.reduce(
+      (acc, ev) => {
+        acc[ev.id] = ev;
+        return acc;
+      },
+      {}
+    );
+
+    const fallback = buildFallbackPlanFromEvents(allowedEvents, req.body);
+
+    const normalized = [];
+    (Array.isArray(events) ? events : []).forEach((ev, idx) => {
+      const candidateId = ev?.eventId || ev?.id;
+      if (!candidateId) return;
+      const allowed = allowedById[candidateId];
+      if (!allowed) return; // ignore any hallucinated event
+
+      normalized.push({
+        eventId: allowed.id,
+        time: ev.time || allowed.hourStart || allowed.hourEnd || fallback[idx % fallback.length]?.time || "20:00",
+        title: allowed.title || ev.title || "Eveniment",
+        location: allowed.address || allowed.location || ev.location || "Locatie",
+        reason: ev.reason || allowed.description || "Potrivit cu preferintele tale.",
+      });
+    });
+
+    const finalEvents =
+      normalized.length > 0
+        ? normalized
+        : fallback.length > 0
+        ? fallback
+        : buildGenericFallback(req.body);
+
+    return res.json({ events: finalEvents });
   } catch (err) {
     console.error("Plan night handler error:", err);
-    return res.status(500).json({ plan: [] });
+    return res.status(500).json({ events: buildGenericFallback() });
   }
 });
 

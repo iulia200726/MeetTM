@@ -222,6 +222,14 @@ function LandingPage() {
             ))}
           </div>
 
+          <div className="hero-subtext">
+            Testeaza noul AI Concierge: completeaza preferintele si Gemini iti livreaza traseul pentru seara.
+          </div>
+          <div className="concierge-cta">
+            <Link to="/concierge" className="concierge-btn">Plan my night</Link>
+            <span className="concierge-caption">1 minut pana la un plan gata de trimis prietenilor.</span>
+          </div>
+
         </div>
 
         {/* ðŸ”¹ HartÄƒ dreapta */}

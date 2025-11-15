@@ -92,8 +92,7 @@ function Navbar() {
           {/* aici vei pune ultimele evenimente */}
         </ul>
       </div>
-
-      {/* 🔹 Dreapta: restul link-urilor / butoanelor */}
+      {/* Dreapta: restul link-urilor / butoanelor */}
       <nav className="navbar nav-right">
         <ul>
           {isAuthenticated ? (
@@ -122,7 +121,11 @@ function Navbar() {
                 <Link to="/friends">Friends</Link>
               </li>
 
-              {/* 🔹 Account (avatar) + pop-up */}
+              <li>
+                <Link to="/concierge">Plan my night</Link>
+              </li>
+
+              {/* Account (avatar) + pop-up */}
               <li className="account-li">
                 <Link
                   to="/account"
@@ -170,6 +173,9 @@ function Navbar() {
               <li>
                 <Link to="/signup">Sign up</Link>
               </li>
+              <li>
+                <Link to="/concierge">Plan my night</Link>
+              </li>
             </>
           )}
         </ul>
@@ -179,3 +185,8 @@ function Navbar() {
 }
 
 export default Navbar;
+
+
+
+
+
