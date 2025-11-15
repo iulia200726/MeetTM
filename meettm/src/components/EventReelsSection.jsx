@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getFirestore,
@@ -24,6 +24,39 @@ import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config.jsx";
 import { getAuth } from "firebase/auth";
 import defaultProfile from "./img/default-profile.svg";
+import "./EventReelsSection.css";
+
+const HeartIcon = ({ filled }) => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="reel-action-svg"
+    fill={filled ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M12 21s-6.2-3.4-9.6-8a6 6 0 0 1 9.2-7 6 6 0 0 1 9.2 7c-3.4 4.6-9.6 8-9.6 8Z" />
+  </svg>
+);
+
+const ShareIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="reel-action-svg"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14 4h6v6" />
+    <path d="M20 4 10 14" />
+    <path d="M10 8H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4" />
+  </svg>
+);
 
 // Helper function to format time ago
 function timeAgo(date) {
@@ -179,7 +212,7 @@ function EventReelsSection({ eventId }) {
     return () => unsub();
   }, []);
 
-  // Load selected event din localStorage dacă nu primim eventId din props
+  // Load selected event from localStorage if not provided via props
   useEffect(() => {
     if (!eventId) {
       const savedEventId = localStorage.getItem("selectedEventForReels");
@@ -230,7 +263,7 @@ function EventReelsSection({ eventId }) {
     return () => unsubReels();
   }, [selectedEventId]);
 
-  // Fetch friends list (users) – folosit la share
+  // Fetch friends list (users) used for share
   useEffect(() => {
     const fetchFriends = async () => {
       try {
@@ -503,7 +536,7 @@ function EventReelsSection({ eventId }) {
       setShareReel(null);
       setSelectedFriendIds([]);
       setShareSearch("");
-      alert("Reel sent to your friends ✅");
+      alert("Reel sent to your friends!");
     } catch (e) {
       console.error("Send reel error:", e);
       setShareSending(false);
@@ -528,67 +561,14 @@ function EventReelsSection({ eventId }) {
       : friends;
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        width: "100vw",
-        backgroundColor: "#000",
-        color: "#fff",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* TOP BAR – stil Instagram web */}
-      <header
-        style={{
-          height: 64,
-          padding: "0 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: "1px solid rgba(55,65,81,0.6)",
-          background:
-            "linear-gradient(90deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9))",
-          zIndex: 20,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#e5e7eb",
-              fontSize: 22,
-              cursor: "pointer",
-              padding: 6,
-              borderRadius: 999,
-            }}
-          >
-            ←
+    <div className="reels-page">       <header className="reels-header">
+        <div className="reels-header-left">
+          <button onClick={() => navigate(-1)} className="icon-btn">
+            Back
           </button>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <span
-              style={{
-                fontSize: 11,
-                letterSpacing: 1.8,
-                textTransform: "uppercase",
-                color: "#9ca3af",
-              }}
-            >
-              Event Reels
-            </span>
-            <span
-              style={{
-                fontSize: 16,
-                fontWeight: 600,
-                maxWidth: 260,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
+          <div className="reels-title-wrapper">
+            <span className="reels-title-label">Event Reels</span>
+            <span className="reels-event-title">
               {currentEvent
                 ? currentEvent.title ||
                   currentEvent.description ||
@@ -599,7 +579,7 @@ function EventReelsSection({ eventId }) {
         </div>
 
         {!eventId && (
-          <div style={{ maxWidth: 280, width: "100%" }}>
+          <div className="event-selector-wrapper">
             <select
               value={selectedEventId || ""}
               onChange={(e) => {
@@ -607,19 +587,9 @@ function EventReelsSection({ eventId }) {
                 setSelectedEventId(newId);
                 localStorage.setItem("selectedEventForReels", newId);
               }}
-              style={{
-                width: "100%",
-                padding: "8px 14px",
-                borderRadius: 999,
-                border: "1px solid rgba(148,163,184,0.7)",
-                background: "rgba(15,23,42,0.98)",
-                color: "#e5e7eb",
-                fontSize: 13,
-                outline: "none",
-                appearance: "none",
-              }}
+              className="event-select"
             >
-              <option value="">Choose an event…</option>
+              <option value="">Choose an event...</option>
               {events.map((ev) => (
                 <option key={ev.id} value={ev.id}>
                   {ev.title || ev.description || `Event ${ev.id}`}
@@ -628,95 +598,21 @@ function EventReelsSection({ eventId }) {
             </select>
           </div>
         )}
-      </header>
+      </header>       <main className="reels-main">         <div className="reels-backdrop" />
 
-      {/* MAIN – centru ca pe Instagram web Reels */}
-      <main
-        style={{
-          flex: 1,
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "stretch",
-          position: "relative",
-          overflow: "hidden",
-          minHeight: "100vh",
-        }}
-      >
-        {/* fundal „vignetting” */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "radial-gradient(circle at top, rgba(15,23,42,0.8) 0, #000 40%, #000 100%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div
-          style={{
-            position: "relative",
-            zIndex: 1,
-            height: "100%",
-            width: "100%",
-            maxWidth: 900,
-            margin: "0 auto",
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
+        <div className="reels-content">
           <div
             ref={reelFeedRef}
-            style={{
-              height: "100%",
-              width: "100%",
-              overflowY: "auto",
-              scrollSnapType: "y mandatory",
-              scrollBehavior: "smooth",
-              scrollPadding: "10vh 0",
-              padding: "12px 0 48px",
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              overscrollBehaviorY: "contain",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
-            {/* mesaj când nu sunt reels */}
-            {reels.length === 0 && selectedEventId && (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textAlign: "center",
-                  gap: 10,
-                  color: "#e5e7eb",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 999,
-                    border: "1px solid rgba(148,163,184,0.6)",
-                    fontSize: 11,
-                    letterSpacing: 1.8,
-                    textTransform: "uppercase",
-                    color: "#9ca3af",
-                  }}
-                >
+            className="reels-feed"
+          >             {reels.length === 0 && selectedEventId && (
+              <div className="reels-empty">
+                <div className="reels-empty-badge">
                   No reels yet
                 </div>
-                <p style={{ fontSize: 16 }}>Be the first to add a reel.</p>
-                <p style={{ fontSize: 13, color: "#9ca3af" }}>
-                  Tap the orange “+” button in the bottom-right corner.
-                </p>
+                <p className="reels-empty-title">Be the first to add a reel.</p>
+                <p className="reels-empty-subtitle">Tap the orange "+" button in the bottom-right corner.</p>
               </div>
-            )}
-
-            {/* fiecare reel */}
-            {reels.map((reel, index) => {
+            )}             {reels.map((reel, index) => {
               const isLiked =
                 userUid && reel.likedBy && reel.likedBy.includes(userUid);
               const isActive = index === activeReelIndex;
@@ -730,55 +626,18 @@ function EventReelsSection({ eventId }) {
                 <section
                   key={reel.id}
                   data-reel-index={index}
-                  style={{
-                    height: "100vh",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: index === 0 ? "flex-start" : "center",
-                    scrollSnapAlign: "start",
-                    scrollSnapStop: "always",
-                    paddingTop: index === 0 ? 12 : 48,
-                    paddingBottom: 48,
-                    boxSizing: "border-box",
-                  }}
+                  className={`reel-section ${index === 0 ? "first" : ""}`}
                 >
                   <div
-                    style={{
-                      position: "relative",
-                      width:
-                        "min(calc((100vh - 64px) * 9 / 16), calc(100vw - 32px))",
-                      height:
-                        "min(calc(100vh - 64px), calc((100vw - 32px) * 16 / 9))",
-                      maxWidth: "min(560px, calc(100vw - 32px))",
-                      maxHeight: "calc(100vh - 24px)",
-                      borderRadius: "clamp(18px, 4vw, 32px)",
-                      overflow: "hidden",
-                      backgroundColor: "#020617",
-                      transform: `scale(${scale})`,
-                      opacity: cardOpacity,
-                      boxShadow: cardShadow,
-                      transition:
-                        "transform 0.22s cubic-bezier(0.28,0.9,0.4,1.1), opacity 0.2s ease, box-shadow 0.24s ease, filter 0.24s ease",
-                      filter: isActive ? "none" : "brightness(0.7) saturate(0.85)",
-                      pointerEvents: isActive ? "auto" : "none",
-                    }}
-                  >
-                    {/* VIDEO – click pentru play/pause ca pe Insta */}
-                    <video
+                    className={`reel-card ${isActive ? "active" : "inactive"}`}
+                  >                     <video
                       ref={(el) => {
                         if (el) reelVideoRefs.current[reel.id] = el;
                       }}
                       src={reel.videoUrl}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        display: "block",
-                        cursor: "pointer",
-                        borderRadius: "inherit",
-                        transition: "filter 0.18s ease",
-                        filter: isActive ? "none" : "brightness(0.75)",
-                      }}
+                      className={`reel-video ${
+                        isActive ? "active" : "inactive"
+                      }`}
                       autoPlay
                       muted
                       loop
@@ -808,60 +667,18 @@ function EventReelsSection({ eventId }) {
                         observer.observe(video);
                       }}
                     />
-
-                    {/* gradient jos */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        insetInline: 0,
-                        bottom: 0,
-                        height: "40%",
-                        background:
-                          "linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.4), transparent)",
-                      }}
-                    />
-
-                    {/* info creator */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: "clamp(14px, 4vw, 30px)",
-                        bottom: "clamp(64px, 14vh, 128px)",
-                        right: "clamp(90px, 22vw, 152px)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "clamp(8px, 2vw, 16px)",
-                      }}
-                    >
+                    <div className="reel-gradient" />
+                    <div className="reel-creator">
                       <img
                         src={reel.profilePicUrl || defaultProfile}
                         alt="avatar"
-                        style={{
-                          width: "clamp(40px, 5vw, 54px)",
-                          height: "clamp(40px, 5vw, 54px)",
-                          borderRadius: "999px",
-                          objectFit: "cover",
-                          border: "2px solid rgba(248,250,252,0.96)",
-                          boxShadow: "0 4px 16px rgba(0,0,0,0.9)",
-                        }}
+                        className="reel-avatar"
                       />
                       <div>
-                        <div
-                          style={{
-                            fontSize: "clamp(14px, 3.5vw, 18px)",
-                            fontWeight: 600,
-                            textShadow: "0 2px 8px rgba(0,0,0,0.9)",
-                          }}
-                        >
+                        <div className="reel-creator-name">
                           {reel.displayName}
                         </div>
-                        <div
-                          style={{
-                            fontSize: "clamp(11px, 2.4vw, 14px)",
-                            color: "#d1d5db",
-                            textShadow: "0 2px 8px rgba(0,0,0,0.85)",
-                          }}
-                        >
+                        <div className="reel-creator-date">
                           {reel.created?.toDate
                             ? reel.created.toDate().toLocaleDateString()
                             : ""}
@@ -869,339 +686,120 @@ function EventReelsSection({ eventId }) {
                       </div>
                     </div>
 
-                    {/* coloană acțiuni – like / comment / share */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        right: "clamp(10px, 3vw, 28px)",
-                        bottom: "clamp(60px, 14vh, 128px)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: "clamp(10px, 2vh, 18px)",
-                      }}
-                    >
-                      {/* Like */}
+                    <div className="reel-actions">
                       <button
                         onClick={() => handleLike(reel.id, reel.likedBy)}
-                        style={{
-                          width: "clamp(48px, 6vw, 66px)",
-                          height: "clamp(48px, 6vw, 66px)",
-                          borderRadius: "999px",
-                          border: "none",
-                          background: isLiked
-                            ? "radial-gradient(circle at 30% 0, #fb7185, #be123c)"
-                            : "radial-gradient(circle at 30% 0, #fecaca, #b91c1c)",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                          boxShadow:
-                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(248,250,252,0.18)",
-                          color: "#fff",
-                          transition: "transform 0.12s ease",
-                        }}
+                        className={`reel-action-btn like ${
+                          isLiked ? "liked" : ""
+                        }`}
                       >
-                        <span
-                          style={{
-                            fontSize: "clamp(20px, 4vw, 26px)",
-                            marginBottom: 2,
-                          }}
-                        >
-                          {isLiked ? "\u{1F49C}" : "\u{1F90D}"}
+                        <span className="reel-action-icon">
+                          <HeartIcon filled={isLiked} />
                         </span>
-                        <span
-                          style={{
-                            fontSize: "clamp(11px, 2vw, 14px)",
-                            fontWeight: 600,
-                            marginTop: -3,
-                          }}
-                        >
+                        <span className="reel-action-count">
                           {reel.likes || 0}
                         </span>
                       </button>
 
-                      {/* Comments */}
                       <button
                         onClick={() =>
                           setShowComments(
                             showComments === reel.id ? null : reel.id
                           )
                         }
-                        style={{
-                          width: "clamp(48px, 6vw, 66px)",
-                          height: "clamp(48px, 6vw, 66px)",
-                          borderRadius: "999px",
-                          border: "none",
-                          background: "rgba(17,24,39,0.96)",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                          boxShadow:
-                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.6)",
-                          color: "#fff",
-                          transition: "transform 0.12s ease",
-                        }}
+                        className="reel-action-btn comment"
                       >
-                        <span
-                          style={{
-                            fontSize: "clamp(18px, 3.2vw, 24px)",
-                            marginBottom: 2,
-                          }}
-                        >
-                          {"\u{1F4AC}"}
+                        <span className="reel-action-icon">
+                          <img
+                            src="/img/Comment_Icon.svg"
+                            alt="Comments"
+                            className="reel-action-svg"
+                          />
                         </span>
-                        <span
-                          style={{
-                            fontSize: "clamp(11px, 2vw, 14px)",
-                            fontWeight: 600,
-                            marginTop: -3,
-                          }}
-                        >
+                        <span className="reel-action-count">
                           {comments[reel.id]?.length || 0}
                         </span>
                       </button>
 
-                      {/* Share */}
                       <button
                         onClick={() => {
                           setShareReel(reel);
                           setSelectedFriendIds([]);
                           setShareSearch("");
                         }}
-                        style={{
-                          width: "clamp(48px, 6vw, 66px)",
-                          height: "clamp(48px, 6vw, 66px)",
-                          borderRadius: "999px",
-                          border: "none",
-                          background:
-                            "radial-gradient(circle at 30% 0, #fbbf24, #f97316)",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          cursor: "pointer",
-                          boxShadow:
-                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(251,191,36,0.6)",
-                          color: "#fff",
-                          transition: "transform 0.12s ease",
-                        }}
+                        className="reel-action-btn share"
                       >
-                        <span
-                          style={{
-                            fontSize: "clamp(18px, 3.2vw, 24px)",
-                            marginBottom: 2,
-                          }}
-                        >
-                          {"\u{1F4E4}"}
+                        <span className="reel-action-icon">
+                          <ShareIcon />
                         </span>
-                        <span
-                          style={{
-                            fontSize: "clamp(11px, 2vw, 14px)",
-                            fontWeight: 600,
-                            marginTop: -3,
-                          }}
-                        >
-                          Share
-                        </span>
+                        <span className="reel-action-count">Share</span>
                       </button>
                     </div>
 
-                    {/* Sheet comentarii */}
                     {showComments === reel.id && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          background: "rgba(15,23,42,0.98)",
-                          borderRadius: "18px 18px 0 0",
-                          padding: 14,
-                          maxHeight: "65%",
-                          display: "flex",
-                          flexDirection: "column",
-                          boxShadow:
-                            "0 -16px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.4)",
-                          zIndex: 10,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 36,
-                            height: 4,
-                            borderRadius: 999,
-                            background: "rgba(148,163,184,0.7)",
-                            margin: "0 auto 8px",
-                          }}
-                        />
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            marginBottom: 6,
-                          }}
-                        >
-                          <h3
-                            style={{
-                              margin: 0,
-                              fontSize: 15,
-                              color: "#f9fafb",
-                              letterSpacing: 0.4,
-                            }}
-                          >
-                            Comments
-                          </h3>
+                      <div className="comments-sheet">
+                        <div className="comments-drag-handle" />
+                        <div className="comments-header">
+                          <h3 className="comments-title">Comments</h3>
                           <button
                             onClick={() => setShowComments(null)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "#9ca3af",
-                              fontSize: 22,
-                              cursor: "pointer",
-                            }}
+                            className="icon-btn icon-btn-muted"
                           >
-                            ×
+                            X
                           </button>
                         </div>
 
-                        <div
-                          style={{
-                            flex: 1,
-                            overflowY: "auto",
-                            paddingRight: 4,
-                            marginBottom: 8,
-                          }}
-                        >
+                        <div className="comments-list">
                           {comments[reel.id] &&
                           comments[reel.id].length > 0 ? (
                             comments[reel.id].map((c) => (
                               <div
                                 key={c.id}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "flex-start",
-                                  marginBottom: 10,
-                                  padding: 8,
-                                  borderRadius: 12,
-                                  background: "rgba(30,64,175,0.25)",
-                                  border:
-                                    "1px solid rgba(129,140,248,0.35)",
-                                }}
+                                className="comment-item"
                               >
                                 <img
                                   src={c.profilePicUrl || defaultProfile}
                                   alt="avatar"
-                                  style={{
-                                    width: 30,
-                                    height: 30,
-                                    borderRadius: "999px",
-                                    objectFit: "cover",
-                                    marginRight: 8,
-                                    border:
-                                      "1px solid rgba(248,250,252,0.9)",
-                                  }}
+                                  className="comment-avatar"
                                 />
-                                <div style={{ flex: 1 }}>
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 6,
-                                      marginBottom: 2,
-                                    }}
-                                  >
-                                    <span
-                                      style={{
-                                        fontSize: 13,
-                                        fontWeight: 600,
-                                        color: "#e5e7eb",
-                                      }}
-                                    >
+                                <div className="comment-body">
+                                  <div className="comment-meta">
+                                    <span className="comment-name">
                                       {c.displayName}
                                     </span>
-                                    <span
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#9ca3af",
-                                      }}
-                                    >
+                                    <span className="comment-time">
                                       {c.created?.toDate
                                         ? timeAgo(c.created.toDate())
                                         : ""}
                                     </span>
                                   </div>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: 13,
-                                      color: "#f9fafb",
-                                    }}
-                                  >
+                                  <p className="comment-text">
                                     {c.text}
                                   </p>
                                 </div>
                               </div>
                             ))
                           ) : (
-                            <p
-                              style={{
-                                textAlign: "center",
-                                color: "#9ca3af",
-                                fontSize: 13,
-                                marginTop: 12,
-                              }}
-                            >
+                            <p className="comments-empty">
                               No comments yet. Be the first!
                             </p>
                           )}
                         </div>
 
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 8,
-                            alignItems: "center",
-                          }}
-                        >
+                        <div className="comment-input-row">
                           <input
                             type="text"
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Add a comment…"
-                            style={{
-                              flex: 1,
-                              padding: "8px 12px",
-                              borderRadius: 999,
-                              border:
-                                "1px solid rgba(148,163,184,0.7)",
-                              background: "rgba(15,23,42,0.96)",
-                              color: "#e5e7eb",
-                              fontSize: 13,
-                              outline: "none",
-                            }}
+                            placeholder="Add a comment..."
+                            className="comment-input"
                             onKeyDown={(e) =>
                               e.key === "Enter" && handleComment(reel.id)
                             }
                           />
                           <button
                             onClick={() => handleComment(reel.id)}
-                            style={{
-                              padding: "8px 14px",
-                              borderRadius: 999,
-                              border: "none",
-                              background:
-                                "linear-gradient(135deg, #2563eb, #4f46e5)",
-                              color: "#fff",
-                              fontSize: 13,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
+                            className="comment-post-btn"
                           >
                             Post
                           </button>
@@ -1213,89 +811,21 @@ function EventReelsSection({ eventId }) {
               );
             })}
           </div>
-        </div>
-
-        {/* buton + reel */}
-        {selectedEventId && (
+        </div>         {selectedEventId && (
           <button
             onClick={() => setShowRecorder(true)}
-            style={{
-              position: "fixed",
-              right: 28,
-              bottom: 28,
-              width: 64,
-              height: 64,
-              borderRadius: "999px",
-              border: "none",
-              background:
-                "radial-gradient(circle at 30% 0, #f97316, #ea580c 40%, #b91c1c 80%)",
-              color: "#fff",
-              fontSize: 32,
-              fontWeight: 500,
-              cursor: "pointer",
-              boxShadow:
-                "0 18px 40px rgba(0,0,0,0.95), 0 0 0 2px rgba(248,250,252,0.12)",
-              zIndex: 30,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            className="add-reel-btn"
           >
             +
           </button>
         )}
-      </main>
-
-      {/* MODAL recorder / upload */}
-      {showRecorder && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.96)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              background: "rgba(15,23,42,0.98)",
-              borderRadius: 22,
-              width: "100%",
-              maxWidth: 430,
-              padding: 18,
-              boxShadow:
-                "0 24px 70px rgba(0,0,0,0.95), 0 0 0 1px rgba(148,163,184,0.45)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 10,
-              }}
-            >
+      </main>       {showRecorder && (
+        <div className="reel-modal-overlay">
+          <div className="reel-modal">
+            <div className="reel-modal-header">
               <div>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: 16,
-                    color: "#f9fafb",
-                  }}
-                >
-                  Add a Reel
-                </h2>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 12,
-                    color: "#9ca3af",
-                  }}
-                >
+                <h2 className="reel-modal-title">Add a Reel</h2>
+                <p className="reel-modal-subtitle">
                   Record with your camera or upload a video file.
                 </p>
               </div>
@@ -1310,113 +840,49 @@ function EventReelsSection({ eventId }) {
                       .forEach((t) => t.stop());
                   }
                 }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#9ca3af",
-                  fontSize: 22,
-                  cursor: "pointer",
-                }}
+                className="icon-btn icon-btn-muted"
               >
-                ×
+                X
               </button>
             </div>
 
-            <div
-              style={{
-                borderRadius: 18,
-                overflow: "hidden",
-                background: "#020617",
-                border: "1px solid rgba(148,163,184,0.45)",
-                marginBottom: 12,
-              }}
-            >
+            <div className="reel-preview">
               <video
                 ref={videoRef}
-                style={{
-                  width: "100%",
-                  height: 320,
-                  objectFit: "cover",
-                  background: "#020617",
-                  display: "block",
-                }}
+                className="reel-preview-video"
                 controls={!recording}
               />
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div className="reel-controls">
               <input
                 type="file"
                 accept="video/*"
                 ref={fileInputRef}
                 onChange={handleFileSelect}
-                style={{ display: "none" }}
+                className="hidden-file-input"
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                style={{
-                  background:
-                    "linear-gradient(135deg, #f97316, #e11d48)",
-                  border: "none",
-                  borderRadius: 999,
-                  padding: "10px 16px",
-                  color: "#fff",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                }}
+                className="file-btn"
               >
-                <span>📁</span> Choose video file
+                Choose video file
               </button>
 
-              <div style={{ display: "flex", gap: 10 }}>
+              <div className="record-row">
                 {!recording ? (
                   <button
                     onClick={startRecording}
-                    style={{
-                      flex: 1,
-                      background:
-                        "radial-gradient(circle at 20% 0, #4ade80, #16a34a)",
-                      border: "none",
-                      borderRadius: 999,
-                      padding: "10px 16px",
-                      color: "#022c22",
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
+                    className="record-btn"
                   >
-                    🎥 Start recording
+                    Start recording
                   </button>
                 ) : (
                   <button
                     onClick={stopRecording}
-                    style={{
-                      flex: 1,
-                      background:
-                        "radial-gradient(circle at 20% 0, #fecaca, #b91c1c)",
-                      border: "none",
-                      borderRadius: 999,
-                      padding: "10px 16px",
-                      color: "#fef2f2",
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                    }}
+                    className="stop-btn"
                   >
-                    ⏹️ Stop
+                    Stop
                   </button>
                 )}
               </div>
@@ -1425,24 +891,9 @@ function EventReelsSection({ eventId }) {
                 <button
                   onClick={uploadReel}
                   disabled={uploading}
-                  style={{
-                    background: uploading
-                      ? "rgba(148,163,184,0.5)"
-                      : "linear-gradient(135deg, #2563eb, #4f46e5)",
-                    border: "none",
-                    borderRadius: 999,
-                    padding: "10px 16px",
-                    color: "#fff",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: uploading ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                  }}
+                  className={`upload-btn ${uploading ? "disabled" : ""}`}
                 >
-                  {uploading ? "⏳ Uploading..." : "📤 Upload reel"}
+                  {uploading ? "Uploading..." : "Upload reel"}
                 </button>
               )}
             </div>
@@ -1450,242 +901,78 @@ function EventReelsSection({ eventId }) {
         </div>
       )}
 
-      {/* SHARE MODAL – trimite reel la prieteni, ca Insta */}
       {shareReel && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 60,
-            padding: 16,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 420,
-              borderRadius: 20,
-              background: "rgba(15,23,42,0.98)",
-              boxShadow:
-                "0 24px 70px rgba(0,0,0,0.95), 0 0 0 1px rgba(75,85,99,0.8)",
-              padding: 16,
-              display: "flex",
-              flexDirection: "column",
-              maxHeight: "90vh",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 10,
-              }}
-            >
-              <h2
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  color: "#f9fafb",
-                }}
-              >
-                Share reel
-              </h2>
+        <div className="share-modal-overlay">
+          <div className="share-modal">
+            <div className="share-modal-header">
+              <h2 className="share-modal-title">Share reel</h2>
               <button
                 onClick={() => {
                   setShareReel(null);
                   setSelectedFriendIds([]);
                   setShareSearch("");
                 }}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#9ca3af",
-                  fontSize: 22,
-                  cursor: "pointer",
-                }}
+                className="icon-btn icon-btn-muted"
               >
-                ×
+                X
               </button>
             </div>
 
-            {/* preview mic al reel-ului */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                marginBottom: 10,
-              }}
-            >
-              <div
-                style={{
-                  width: 52,
-                  height: 70,
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  background: "#020617",
-                  border: "1px solid rgba(75,85,99,0.9)",
-                  flexShrink: 0,
-                }}
-              >
+            <div className="share-preview">
+              <div className="share-preview-video-wrapper">
                 <video
                   src={shareReel.videoUrl}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
+                  className="share-preview-video"
                   muted
                   autoPlay
                   loop
                   playsInline
                 />
               </div>
-              <div style={{ flex: 1 }}>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 13,
-                    color: "#e5e7eb",
-                  }}
-                >
-                  Send this reel to your friends.
-                </p>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 11,
-                    color: "#9ca3af",
-                  }}
-                >
-                  Friends will receive it in their inbox.
-                </p>
+              <div className="share-preview-copy">
+                <p className="share-preview-title">Send this reel to your friends.</p>
+                <p className="share-preview-subtitle">Friends will receive it in their inbox.</p>
               </div>
             </div>
 
-            {/* search friends */}
-            <div style={{ marginBottom: 8 }}>
+            <div className="share-search-wrapper">
               <input
                 type="text"
-                placeholder="Search friends…"
+                placeholder="Search friends..."
                 value={shareSearch}
                 onChange={(e) => setShareSearch(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "8px 12px",
-                  borderRadius: 999,
-                  border: "1px solid rgba(148,163,184,0.7)",
-                  background: "rgba(15,23,42,0.96)",
-                  color: "#e5e7eb",
-                  fontSize: 13,
-                  outline: "none",
-                }}
+                className="share-search-input"
               />
             </div>
 
-            {/* friends list */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                paddingRight: 4,
-                marginBottom: 10,
-                borderRadius: 14,
-                border: "1px solid rgba(55,65,81,0.9)",
-                background: "rgba(15,23,42,0.85)",
-              }}
-            >
+            <div className="share-friend-list">
               {friendsLoading ? (
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "#9ca3af",
-                    padding: 10,
-                    textAlign: "center",
-                  }}
-                >
-                  Loading friends…
-                </p>
+                <p className="share-friend-status">Loading friends...</p>
               ) : filteredFriends.length === 0 ? (
-                <p
-                  style={{
-                    fontSize: 13,
-                    color: "#9ca3af",
-                    padding: 10,
-                    textAlign: "center",
-                  }}
-                >
-                  No friends found.
-                </p>
+                <p className="share-friend-status">No friends found.</p>
               ) : (
                 filteredFriends.map((f) => {
                   const isSelected = selectedFriendIds.includes(f.id);
-                  const displayName =
-                    f.username || f.displayName || f.email || "User";
+                  const displayName = f.username || f.displayName || f.email || "User";
 
                   return (
                     <button
                       key={f.id}
                       onClick={() => toggleFriendSelect(f.id)}
-                      style={{
-                        width: "100%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "8px 10px",
-                        background: "transparent",
-                        border: "none",
-                        borderBottom:
-                          "1px solid rgba(55,65,81,0.8)",
-                        cursor: "pointer",
-                      }}
+                      className={`friend-item ${isSelected ? "selected" : ""}`}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div className="friend-item-content">
                         <img
                           src={f.profilePicUrl || defaultProfile}
                           alt="avatar"
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "999px",
-                            objectFit: "cover",
-                            border:
-                              "1px solid rgba(248,250,252,0.8)",
-                          }}
+                          className="friend-avatar"
                         />
-                        <span
-                          style={{
-                            fontSize: 13,
-                            color: "#e5e7eb",
-                          }}
-                        >
-                          {displayName}
-                        </span>
+                        <span className="friend-name">{displayName}</span>
                       </div>
                       <div
-                        style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: "999px",
-                          border: isSelected
-                            ? "none"
-                            : "1px solid rgba(148,163,184,0.9)",
-                          background: isSelected
-                            ? "linear-gradient(135deg,#2563eb,#4f46e5)"
-                            : "transparent",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 12,
-                          color: "#fff",
-                        }}
+                        className={`friend-check ${isSelected ? "selected" : ""}`}
                       >
-                        {isSelected && "✓"}
+                        {isSelected && "\u2713"}
                       </div>
                     </button>
                   );
@@ -1693,29 +980,15 @@ function EventReelsSection({ eventId }) {
               )}
             </div>
 
-            {/* send btn */}
             <button
               onClick={handleSendReel}
               disabled={selectedFriendIds.length === 0 || shareSending}
-              style={{
-                padding: "9px 14px",
-                borderRadius: 999,
-                border: "none",
-                background:
-                  selectedFriendIds.length === 0 || shareSending
-                    ? "rgba(148,163,184,0.4)"
-                    : "linear-gradient(135deg, #2563eb, #4f46e5)",
-                color: "#fff",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor:
-                  selectedFriendIds.length === 0 || shareSending
-                    ? "not-allowed"
-                    : "pointer",
-              }}
+              className={`share-send-btn ${
+                selectedFriendIds.length === 0 || shareSending ? "disabled" : ""
+              }`}
             >
               {shareSending
-                ? "Sending…"
+                ? "Sending..."
                 : selectedFriendIds.length === 0
                 ? "Choose at least one friend"
                 : `Send to ${selectedFriendIds.length} friend${
@@ -1730,4 +1003,15 @@ function EventReelsSection({ eventId }) {
 }
 
 export default EventReelsSection;
+
+
+
+
+
+
+
+
+
+
+
 
