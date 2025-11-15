@@ -854,20 +854,21 @@
 }
 
 .share-sheet {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
+  width: 100%;
   background: rgba(15, 23, 42, 0.98);
   padding: 14px;
   border-radius: 18px 18px 0 0;
   box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(148, 163, 184, 0.35);
   backdrop-filter: blur(10px);
-  max-height: 72vh;
+  max-height: 68%;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 50;
+  z-index: 12;
 }
 
 .share-sheet-top {

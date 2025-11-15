@@ -872,6 +872,8 @@ function EventReelsSection({ eventId }) {
                           setShareReel(reel);
                           setSelectedFriendIds([]);
                           setShareSearch("");
+                          shareDragOffsetRef.current = 0;
+                          setShareDragOffset(0);
                         }}
                         className="reel-action-btn share"
                       >
@@ -965,7 +967,118 @@ function EventReelsSection({ eventId }) {
                         </div>
                       </div>
                     )}
+
+                    {shareReel?.id === reel.id && (
+                      <div
+                        className="share-sheet"
+                        style={{
+                          transform: shareDragOffset > 0 ? `translateY(${shareDragOffset}px)` : "translateY(0)",
+                          transition: shareDragOffset > 0 ? "none" : "transform 180ms ease",
+                        }}
+                      >
+                        <div
+                          className="share-sheet-top"
+                          onPointerDown={(e) => handleShareDragStart(e)}
+                          role="presentation"
+                        >
+                          <div className="comments-drag-handle" />
+                          <div className="share-sheet-header">
+                            <h3 className="comments-title">Share reel</h3>
+                            {/* <button
+                              onClick={() => {
+                                setShareReel(null);
+                                setSelectedFriendIds([]);
+                                setShareSearch("");
+                              }}
+                              className="icon-btn icon-btn-muted"
+                            >
+                              X
+                            </button> */}
+                          </div>
+                        </div>
+
+                        <div className="share-preview">
+                          <div className="share-preview-video-wrapper">
+                            <video
+                              src={shareReel.videoUrl}
+                              className="share-preview-video"
+                              muted
+                              autoPlay
+                              loop
+                              playsInline
+                            />
+                          </div>
+                          <div className="share-preview-copy">
+                            <p className="share-preview-title">Send this reel to your friends.</p>
+                            <p className="share-preview-subtitle">Friends will receive it in their inbox.</p>
+                          </div>
+                        </div>
+
+                        <div className="share-search-wrapper">
+                          <input
+                            type="text"
+                            placeholder="Search friends..."
+                            value={shareSearch}
+                            onChange={(e) => setShareSearch(e.target.value)}
+                            className="share-search-input"
+                          />
+                        </div>
+
+                        <div className="share-friend-list">
+                          {friendsLoading ? (
+                            <p className="share-friend-status">Loading friends...</p>
+                          ) : filteredFriends.length === 0 ? (
+                            <p className="share-friend-status">No friends found.</p>
+                          ) : (
+                            filteredFriends.map((f) => {
+                              const isSelected = selectedFriendIds.includes(f.id);
+                              const displayName = f.username || f.displayName || f.email || "User";
+
+                              return (
+                                <button
+                                  key={f.id}
+                                  onClick={() => toggleFriendSelect(f.id)}
+                                  className={`friend-item ${isSelected ? "selected" : ""}`}
+                                >
+                                  <div className="friend-item-content">
+                                    <img
+                                      src={f.profilePicUrl || defaultProfile}
+                                      alt="avatar"
+                                      className="friend-avatar"
+                                    />
+                                    <span className="friend-name">{displayName}</span>
+                                  </div>
+                                  <div
+                                    className={`friend-check ${isSelected ? "selected" : ""}`}
+                                  >
+                                    {isSelected && "\u2713"}
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        <button
+                          onClick={handleSendReel}
+                          disabled={shareSending}
+                          className={`share-send-btn ${
+                            selectedFriendIds.length === 0 || shareSending ? "disabled" : ""
+                          }`}
+                        >
+                          {shareSending
+                            ? "Sending..."
+                            : selectedFriendIds.length === 0
+                            ? "Choose at least one friend"
+                            : `Send to ${selectedFriendIds.length} friend${
+                                selectedFriendIds.length > 1 ? "s" : ""
+                              }`}
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  
                 </section>
               );
             })}
@@ -1057,115 +1170,6 @@ function EventReelsSection({ eventId }) {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {shareReel && (
-        <div
-          className="share-sheet"
-          style={{
-            transform: shareDragOffset > 0 ? `translateY(${shareDragOffset}px)` : "translateY(0)",
-            transition: shareDragOffset > 0 ? "none" : "transform 180ms ease",
-          }}
-        >
-          <div
-            className="share-sheet-top"
-            onPointerDown={(e) => handleShareDragStart(e)}
-            role="presentation"
-          >
-            <div className="comments-drag-handle" />
-            <div className="share-sheet-header">
-              <h3 className="comments-title">Share reel</h3>
-              <button
-                onClick={() => {
-                  setShareReel(null);
-                  setSelectedFriendIds([]);
-                  setShareSearch("");
-                }}
-                className="icon-btn icon-btn-muted"
-              >
-                X
-              </button>
-            </div>
-          </div>
-
-          <div className="share-preview">
-            <div className="share-preview-video-wrapper">
-              <video
-                src={shareReel.videoUrl}
-                className="share-preview-video"
-                muted
-                autoPlay
-                loop
-                playsInline
-              />
-            </div>
-            <div className="share-preview-copy">
-              <p className="share-preview-title">Send this reel to your friends.</p>
-              <p className="share-preview-subtitle">Friends will receive it in their inbox.</p>
-            </div>
-          </div>
-
-          <div className="share-search-wrapper">
-            <input
-              type="text"
-              placeholder="Search friends..."
-              value={shareSearch}
-              onChange={(e) => setShareSearch(e.target.value)}
-              className="share-search-input"
-            />
-          </div>
-
-          <div className="share-friend-list">
-            {friendsLoading ? (
-              <p className="share-friend-status">Loading friends...</p>
-            ) : filteredFriends.length === 0 ? (
-              <p className="share-friend-status">No friends found.</p>
-            ) : (
-              filteredFriends.map((f) => {
-                const isSelected = selectedFriendIds.includes(f.id);
-                const displayName = f.username || f.displayName || f.email || "User";
-
-                return (
-                  <button
-                    key={f.id}
-                    onClick={() => toggleFriendSelect(f.id)}
-                    className={`friend-item ${isSelected ? "selected" : ""}`}
-                  >
-                    <div className="friend-item-content">
-                      <img
-                        src={f.profilePicUrl || defaultProfile}
-                        alt="avatar"
-                        className="friend-avatar"
-                      />
-                      <span className="friend-name">{displayName}</span>
-                    </div>
-                    <div
-                      className={`friend-check ${isSelected ? "selected" : ""}`}
-                    >
-                      {isSelected && "\u2713"}
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </div>
-
-          <button
-            onClick={handleSendReel}
-            disabled={shareSending}
-            className={`share-send-btn ${
-              selectedFriendIds.length === 0 || shareSending ? "disabled" : ""
-            }`}
-          >
-            {shareSending
-              ? "Sending..."
-              : selectedFriendIds.length === 0
-              ? "Choose at least one friend"
-              : `Send to ${selectedFriendIds.length} friend${
-                  selectedFriendIds.length > 1 ? "s" : ""
-                }`}
-          </button>
         </div>
       )}
     </div>
