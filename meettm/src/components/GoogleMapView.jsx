@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { GoogleMap, Circle, InfoWindow, HeatmapLayer, Marker } from "@react-google-maps/api";
 import "./cssComponents/GoogleMapView.css";
 
@@ -45,6 +45,9 @@ function getCircleOptions(issue) {
 function GoogleMapView({ markers = [] }) {
   const [selectedCoords, setSelectedCoords] = useState(null);
   const [auraData, setAuraData] = useState([]);
+  const [activeMapType, setActiveMapType] = useState("roadmap");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const mapRef = useRef(null);
   const now = new Date();
 
   useEffect(() => {
@@ -70,18 +73,21 @@ function GoogleMapView({ markers = [] }) {
     return new Date(m.endDateTime) > now;
   });
 
-  const center = { lat: 45.75372, lng: 21.22571 };
+  useEffect(() => {
+    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const center = useMemo(
+    () => ({
+      lat: 45.75372,
+      lng: 21.22571,
+    }),
+    []
+  );
 
   const mapOptions = {
-    restriction: {
-      latLngBounds: {
-        north: 45.81,
-        south: 45.69,
-        east: 21.32,
-        west: 21.14,
-      },
-      strictBounds: true,
-    },
     styles: [
       {
         featureType: "poi.business",
@@ -119,6 +125,41 @@ function GoogleMapView({ markers = [] }) {
         stylers: [{ color: "#888888" }],
       },
     ],
+    gestureHandling: "greedy",
+    draggable: true,
+    keyboardShortcuts: true,
+    scrollwheel: true,
+    disableDoubleClickZoom: false,
+    fullscreenControl: false,
+    streetViewControl: false,
+    mapTypeControl: false,
+    mapTypeControlOptions: undefined,
+  };
+  const handleMapLoad = (map) => {
+    mapRef.current = map;
+    map.setMapTypeId(activeMapType);
+  };
+
+  const handleMapTypeChange = (type) => {
+    setActiveMapType(type);
+    if (mapRef.current) {
+      mapRef.current.setMapTypeId(type);
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    if (!mapRef.current) return;
+    const mapDiv = mapRef.current.getDiv();
+    if (!mapDiv) return;
+    try {
+      if (!document.fullscreenElement) {
+        await mapDiv.requestFullscreen?.();
+      } else {
+        await document.exitFullscreen?.();
+      }
+    } catch (error) {
+      console.error("Fullscreen toggle failed:", error);
+    }
   };
 
   const selectedIssues = selectedCoords
@@ -171,7 +212,13 @@ function GoogleMapView({ markers = [] }) {
 
       <div className="map-card__body">
         <div className="map-card__glow" aria-hidden="true" />
-        <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={13} options={mapOptions}>
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          center={center}
+          zoom={13}
+          options={mapOptions}
+          onLoad={handleMapLoad}
+        >
           {heatmapData.length > 0 && (
             <HeatmapLayer
               data={heatmapData}
@@ -259,6 +306,42 @@ function GoogleMapView({ markers = [] }) {
             </InfoWindow>
           )}
         </GoogleMap>
+        <div className="map-controls">
+          <div className="map-controls__primary">
+            {[
+              { id: "roadmap", label: "Map" },
+              { id: "hybrid", label: "Satellite" },
+              { id: "terrain", label: "Terrain" },
+            ].map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`map-controls__button ${
+                  activeMapType === option.id ? "is-active" : ""
+                }`}
+                onClick={() => handleMapTypeChange(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="map-controls__fullscreen"
+          onClick={toggleFullscreen}
+          aria-label="Toggle fullscreen"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d={
+                isFullscreen
+                  ? "M9 3H5a2 2 0 0 0-2 2v4h2V5h4V3Zm10 0h-4v2h4v4h2V5a2 2 0 0 0-2-2ZM9 19H5v-4H3v4a2 2 0 0 0 2 2h4v-2Zm10-4v4h-4v2h4a2 2 0 0 0 2-2v-4h-2Z"
+                  : "M9 3H7a4 4 0 0 0-4 4v2h2V7a2 2 0 0 1 2-2h2V3Zm8 0h-2v2h2a2 2 0 0 1 2 2v2h2V7a4 4 0 0 0-4-4ZM5 15H3v2a4 4 0 0 0 4 4h2v-2H7a2 2 0 0 1-2-2v-2Zm14 0v2a2 2 0 0 1-2 2h-2v2h2a4 4 0 0 0 4-4v-2h-2Z"
+              }
+            />
+          </svg>
+        </button>
       </div>
 
       <div className="map-card__legend">

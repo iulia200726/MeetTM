@@ -133,6 +133,83 @@
   border-radius: 999px;
 }
 
+.map-controls {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: block;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.map-controls__primary {
+  display: inline-flex;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(11, 15, 25, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(18px);
+  pointer-events: all;
+}
+
+.map-controls__button {
+  border: none;
+  background: transparent;
+  color: #dfe8ff;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.35rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.map-controls__button:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.map-controls__button.is-active {
+  background: linear-gradient(135deg, rgba(99, 72, 255, 0.95), rgba(77, 60, 170, 0.9));
+  color: #f3f4ff;
+  box-shadow: 0 0 25px rgba(99, 72, 255, 0.35);
+}
+
+.map-controls__fullscreen {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  border: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: #e2e8f0;
+  background: linear-gradient(160deg, rgba(99, 72, 255, 0.95), rgba(58, 46, 123, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  pointer-events: all;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 0 30px rgba(99, 72, 255, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.map-controls__fullscreen:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 35px rgba(99, 72, 255, 0.45);
+}
+
+.map-controls__fullscreen svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+
 .map-infowindow {
   min-width: 240px;
   color: #0f172a;
@@ -198,6 +275,26 @@
   .map-card__badge {
     width: 100%;
     justify-content: center;
+  }
+
+  .map-controls {
+    top: 0.75rem;
+    left: 0.75rem;
+    right: auto;
+  }
+
+  .map-controls__primary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .map-controls__button {
+    text-align: left;
+  }
+
+  .map-controls__fullscreen {
+    top: 0.75rem;
+    right: 0.75rem;
   }
 }
 

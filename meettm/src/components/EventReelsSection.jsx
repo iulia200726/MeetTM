@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   getFirestore,
@@ -68,6 +68,7 @@ function EventReelsSection({ eventId }) {
   const [shareSending, setShareSending] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState([]);
   const [shareReel, setShareReel] = useState(null);
+  const [activeReelIndex, setActiveReelIndex] = useState(0);
 
   const videoRef = useRef(null); // recorder preview
   const recorderRef = useRef(null);
@@ -75,6 +76,100 @@ function EventReelsSection({ eventId }) {
   const fileInputRef = useRef(null);
 
   const reelVideoRefs = useRef({}); // pentru play/pause pe fiecare reel
+  const reelFeedRef = useRef(null);
+  const magnetSnapTimeout = useRef(null);
+
+  const snapToReel = useCallback(
+    (index, { instant = false } = {}) => {
+      if (!reels.length) {
+        setActiveReelIndex(0);
+        return;
+      }
+
+      const safeIndex = Math.max(0, Math.min(index, reels.length - 1));
+      setActiveReelIndex((prev) => (prev === safeIndex ? prev : safeIndex));
+
+      const container = reelFeedRef.current;
+      if (!container) return;
+
+      const target = container.querySelector(
+        `[data-reel-index="${safeIndex}"]`
+      );
+      if (!target) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const targetTop =
+        targetRect.top - containerRect.top + container.scrollTop;
+
+      if (Math.abs(container.scrollTop - targetTop) < 1) return;
+
+      container.scrollTo({
+        top: targetTop,
+        behavior: instant ? "auto" : "smooth",
+      });
+    },
+    [reels.length]
+  );
+
+  useEffect(() => {
+    setActiveReelIndex(0);
+    const container = reelFeedRef.current;
+    if (container) {
+      container.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [selectedEventId]);
+
+  useEffect(() => {
+    if (!reels.length) {
+      setActiveReelIndex(0);
+      return;
+    }
+
+    if (activeReelIndex > reels.length - 1) {
+      snapToReel(reels.length - 1, { instant: true });
+    }
+  }, [activeReelIndex, reels.length, snapToReel]);
+
+  useEffect(() => {
+    const container = reelFeedRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (magnetSnapTimeout.current) {
+        clearTimeout(magnetSnapTimeout.current);
+      }
+
+      magnetSnapTimeout.current = setTimeout(() => {
+        const sections = container.querySelectorAll("[data-reel-index]");
+        if (!sections.length) return;
+
+        const containerMid = container.scrollTop + container.clientHeight / 2;
+        let closestIndex = 0;
+        let smallestDistance = Number.POSITIVE_INFINITY;
+
+        sections.forEach((section, idx) => {
+          const sectionMid = section.offsetTop + section.clientHeight / 2;
+          const distance = Math.abs(sectionMid - containerMid);
+          if (distance < smallestDistance) {
+            smallestDistance = distance;
+            closestIndex = idx;
+          }
+        });
+
+        snapToReel(closestIndex);
+      }, 20);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (magnetSnapTimeout.current) {
+        clearTimeout(magnetSnapTimeout.current);
+      }
+    };
+  }, [snapToReel, reels.length]);
 
   // Fetch events pentru selector
   useEffect(() => {
@@ -544,6 +639,7 @@ function EventReelsSection({ eventId }) {
           alignItems: "stretch",
           position: "relative",
           overflow: "hidden",
+          minHeight: "100vh",
         }}
       >
         {/* fundal „vignetting” */}
@@ -570,13 +666,19 @@ function EventReelsSection({ eventId }) {
           }}
         >
           <div
+            ref={reelFeedRef}
             style={{
               height: "100%",
               width: "100%",
-              overflowY: "scroll",
+              overflowY: "auto",
               scrollSnapType: "y mandatory",
               scrollBehavior: "smooth",
-              padding: "24px 0",
+              scrollPadding: "10vh 0",
+              padding: "12px 0 48px",
+              scrollbarWidth: "none",
+              msOverflowStyle: "none",
+              overscrollBehaviorY: "contain",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {/* mesaj când nu sunt reels */}
@@ -614,32 +716,51 @@ function EventReelsSection({ eventId }) {
             )}
 
             {/* fiecare reel */}
-            {reels.map((reel) => {
+            {reels.map((reel, index) => {
               const isLiked =
                 userUid && reel.likedBy && reel.likedBy.includes(userUid);
+              const isActive = index === activeReelIndex;
+              const scale = isActive ? 1 : 0.93;
+              const cardOpacity = isActive ? 1 : 0.35;
+              const cardShadow = isActive
+                ? "0 45px 110px rgba(2,6,23,0.98), 0 0 0 1px rgba(248,250,252,0.18)"
+                : "0 25px 80px rgba(2,6,23,0.55)";
 
               return (
                 <section
                   key={reel.id}
+                  data-reel-index={index}
                   style={{
-                    height: "100%",
+                    height: "100vh",
                     display: "flex",
                     justifyContent: "center",
-                    alignItems: "center",
+                    alignItems: index === 0 ? "flex-start" : "center",
                     scrollSnapAlign: "start",
+                    scrollSnapStop: "always",
+                    paddingTop: index === 0 ? 12 : 48,
+                    paddingBottom: 48,
+                    boxSizing: "border-box",
                   }}
                 >
                   <div
                     style={{
                       position: "relative",
-                      width: 430,
-                      maxWidth: "70vw",
-                      aspectRatio: "9 / 16",
-                      borderRadius: 24,
+                      width:
+                        "min(calc((100vh - 64px) * 9 / 16), calc(100vw - 32px))",
+                      height:
+                        "min(calc(100vh - 64px), calc((100vw - 32px) * 16 / 9))",
+                      maxWidth: "min(560px, calc(100vw - 32px))",
+                      maxHeight: "calc(100vh - 24px)",
+                      borderRadius: "clamp(18px, 4vw, 32px)",
                       overflow: "hidden",
-                      boxShadow:
-                        "0 30px 80px rgba(0,0,0,0.95), 0 0 0 1px rgba(75,85,99,0.7)",
                       backgroundColor: "#020617",
+                      transform: `scale(${scale})`,
+                      opacity: cardOpacity,
+                      boxShadow: cardShadow,
+                      transition:
+                        "transform 0.22s cubic-bezier(0.28,0.9,0.4,1.1), opacity 0.2s ease, box-shadow 0.24s ease, filter 0.24s ease",
+                      filter: isActive ? "none" : "brightness(0.7) saturate(0.85)",
+                      pointerEvents: isActive ? "auto" : "none",
                     }}
                   >
                     {/* VIDEO – click pentru play/pause ca pe Insta */}
@@ -654,6 +775,9 @@ function EventReelsSection({ eventId }) {
                         objectFit: "cover",
                         display: "block",
                         cursor: "pointer",
+                        borderRadius: "inherit",
+                        transition: "filter 0.18s ease",
+                        filter: isActive ? "none" : "brightness(0.75)",
                       }}
                       autoPlay
                       muted
@@ -701,20 +825,20 @@ function EventReelsSection({ eventId }) {
                     <div
                       style={{
                         position: "absolute",
-                        left: 16,
-                        bottom: 88,
-                        right: 90,
+                        left: "clamp(14px, 4vw, 30px)",
+                        bottom: "clamp(64px, 14vh, 128px)",
+                        right: "clamp(90px, 22vw, 152px)",
                         display: "flex",
                         alignItems: "center",
-                        gap: 10,
+                        gap: "clamp(8px, 2vw, 16px)",
                       }}
                     >
                       <img
                         src={reel.profilePicUrl || defaultProfile}
                         alt="avatar"
                         style={{
-                          width: 42,
-                          height: 42,
+                          width: "clamp(40px, 5vw, 54px)",
+                          height: "clamp(40px, 5vw, 54px)",
                           borderRadius: "999px",
                           objectFit: "cover",
                           border: "2px solid rgba(248,250,252,0.96)",
@@ -724,7 +848,7 @@ function EventReelsSection({ eventId }) {
                       <div>
                         <div
                           style={{
-                            fontSize: 15,
+                            fontSize: "clamp(14px, 3.5vw, 18px)",
                             fontWeight: 600,
                             textShadow: "0 2px 8px rgba(0,0,0,0.9)",
                           }}
@@ -733,7 +857,7 @@ function EventReelsSection({ eventId }) {
                         </div>
                         <div
                           style={{
-                            fontSize: 12,
+                            fontSize: "clamp(11px, 2.4vw, 14px)",
                             color: "#d1d5db",
                             textShadow: "0 2px 8px rgba(0,0,0,0.85)",
                           }}
@@ -749,20 +873,20 @@ function EventReelsSection({ eventId }) {
                     <div
                       style={{
                         position: "absolute",
-                        right: 14,
-                        bottom: 80,
+                        right: "clamp(10px, 3vw, 28px)",
+                        bottom: "clamp(60px, 14vh, 128px)",
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "center",
-                        gap: 14,
+                        gap: "clamp(10px, 2vh, 18px)",
                       }}
                     >
                       {/* Like */}
                       <button
                         onClick={() => handleLike(reel.id, reel.likedBy)}
                         style={{
-                          width: 52,
-                          height: 52,
+                          width: "clamp(48px, 6vw, 66px)",
+                          height: "clamp(48px, 6vw, 66px)",
                           borderRadius: "999px",
                           border: "none",
                           background: isLiked
@@ -779,12 +903,17 @@ function EventReelsSection({ eventId }) {
                           transition: "transform 0.12s ease",
                         }}
                       >
-                        <span style={{ fontSize: 22, marginBottom: 2 }}>
-                          {isLiked ? "❤️" : "🤍"}
+                        <span
+                          style={{
+                            fontSize: "clamp(20px, 4vw, 26px)",
+                            marginBottom: 2,
+                          }}
+                        >
+                          {isLiked ? "\u{1F49C}" : "\u{1F90D}"}
                         </span>
                         <span
                           style={{
-                            fontSize: 12,
+                            fontSize: "clamp(11px, 2vw, 14px)",
                             fontWeight: 600,
                             marginTop: -3,
                           }}
@@ -801,8 +930,8 @@ function EventReelsSection({ eventId }) {
                           )
                         }
                         style={{
-                          width: 52,
-                          height: 52,
+                          width: "clamp(48px, 6vw, 66px)",
+                          height: "clamp(48px, 6vw, 66px)",
                           borderRadius: "999px",
                           border: "none",
                           background: "rgba(17,24,39,0.96)",
@@ -814,12 +943,20 @@ function EventReelsSection({ eventId }) {
                           boxShadow:
                             "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.6)",
                           color: "#fff",
+                          transition: "transform 0.12s ease",
                         }}
                       >
-                        <span style={{ fontSize: 22, marginBottom: 2 }}>💬</span>
                         <span
                           style={{
-                            fontSize: 12,
+                            fontSize: "clamp(18px, 3.2vw, 24px)",
+                            marginBottom: 2,
+                          }}
+                        >
+                          {"\u{1F4AC}"}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "clamp(11px, 2vw, 14px)",
                             fontWeight: 600,
                             marginTop: -3,
                           }}
@@ -828,7 +965,7 @@ function EventReelsSection({ eventId }) {
                         </span>
                       </button>
 
-                      {/* Share to friends */}
+                      {/* Share */}
                       <button
                         onClick={() => {
                           setShareReel(reel);
@@ -836,27 +973,36 @@ function EventReelsSection({ eventId }) {
                           setShareSearch("");
                         }}
                         style={{
-                          width: 52,
-                          height: 52,
+                          width: "clamp(48px, 6vw, 66px)",
+                          height: "clamp(48px, 6vw, 66px)",
                           borderRadius: "999px",
                           border: "none",
-                          background: "rgba(15,23,42,0.96)",
+                          background:
+                            "radial-gradient(circle at 30% 0, #fbbf24, #f97316)",
                           display: "flex",
                           flexDirection: "column",
                           alignItems: "center",
                           justifyContent: "center",
                           cursor: "pointer",
                           boxShadow:
-                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.6)",
+                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(251,191,36,0.6)",
                           color: "#fff",
+                          transition: "transform 0.12s ease",
                         }}
                       >
-                        <span style={{ fontSize: 20, marginBottom: 2 }}>📤</span>
                         <span
                           style={{
-                            fontSize: 11,
+                            fontSize: "clamp(18px, 3.2vw, 24px)",
+                            marginBottom: 2,
+                          }}
+                        >
+                          {"\u{1F4E4}"}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "clamp(11px, 2vw, 14px)",
                             fontWeight: 600,
-                            marginTop: -2,
+                            marginTop: -3,
                           }}
                         >
                           Share
@@ -1584,3 +1730,4 @@ function EventReelsSection({ eventId }) {
 }
 
 export default EventReelsSection;
+
