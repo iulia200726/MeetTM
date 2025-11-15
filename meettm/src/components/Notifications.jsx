@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc } from "firebase/firestore";
+import { getFirestore, collection, query, where, onSnapshot, doc, getDoc, updateDoc, addDoc, orderBy, serverTimestamp } from "firebase/firestore";
 import defaultProfile from "./img/default-profile.svg";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
@@ -25,8 +26,14 @@ function timeAgo(date) {
 
 function Notifications() {
   const [notifications, setNotifications] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [activeTab, setActiveTab] = useState("notifications");
+  const [replyModal, setReplyModal] = useState(null);
+  const [replyText, setReplyText] = useState("");
   const user = getAuth().currentUser;
   const markedAsRead = useRef(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
@@ -54,6 +61,78 @@ function Notifications() {
     return () => unsub();
   }, [user]);
 
+  // Fetch messages (inboxReels and privateMessages) and aggregate friends
+  useEffect(() => {
+    if (!user) return;
+
+    const qReels = query(
+      collection(db, "users", user.uid, "inboxReels"),
+      orderBy("created", "desc")
+    );
+    const unsubReels = onSnapshot(qReels, (snap) => {
+      const reels = snap.docs.map((doc) => ({ id: doc.id, type: 'reel', ...doc.data() }));
+      setMessages((prev) => {
+        const others = prev.filter(m => m.type !== 'reel');
+        return [...reels, ...others].sort((a, b) => (b.created?.toMillis?.() || 0) - (a.created?.toMillis?.() || 0));
+      });
+    });
+
+    const qPrivate = query(
+      collection(db, "users", user.uid, "privateMessages"),
+      orderBy("created", "desc")
+    );
+    const unsubPrivate = onSnapshot(qPrivate, (snap) => {
+      const privMsgs = snap.docs.map((doc) => ({ id: doc.id, type: 'message', ...doc.data() }));
+      setMessages((prev) => {
+        const others = prev.filter(m => m.type !== 'message');
+        return [...privMsgs, ...others].sort((a, b) => (b.created?.toMillis?.() || 0) - (a.created?.toMillis?.() || 0));
+      });
+    });
+
+    return () => {
+      unsubReels();
+      unsubPrivate();
+    };
+  }, [user]);
+
+  // Aggregate friends from messages
+  useEffect(() => {
+    if (!messages.length) return;
+
+    const friendMap = new Map();
+    messages.forEach((msg) => {
+      let friendUid, friendName, friendPic, lastMessage, lastTime;
+      if (msg.type === 'reel') {
+        friendUid = msg.fromUid;
+        friendName = msg.fromDisplayName;
+        friendPic = msg.fromProfilePicUrl;
+        lastMessage = `Shared a reel`;
+        lastTime = msg.created;
+      } else if (msg.type === 'message') {
+        friendUid = msg.fromUid === user.uid ? msg.toUid : msg.fromUid;
+        friendName = msg.fromUid === user.uid ? msg.toDisplayName : msg.fromDisplayName;
+        friendPic = msg.fromUid === user.uid ? msg.toProfilePicUrl : msg.fromProfilePicUrl;
+        lastMessage = msg.text;
+        lastTime = msg.created;
+      }
+
+      if (friendUid && friendUid !== user.uid) {
+        if (!friendMap.has(friendUid) || (lastTime?.toMillis?.() || 0) > (friendMap.get(friendUid).lastTime?.toMillis?.() || 0)) {
+          friendMap.set(friendUid, {
+            uid: friendUid,
+            name: friendName,
+            pic: friendPic,
+            lastMessage,
+            lastTime,
+          });
+        }
+      }
+    });
+
+    const friendsList = Array.from(friendMap.values()).sort((a, b) => (b.lastTime?.toMillis?.() || 0) - (a.lastTime?.toMillis?.() || 0));
+    setFriends(friendsList);
+  }, [messages, user]);
+
   // Grupare notificări după zi/lună
   const grouped = { Today: [], Yesterday: [], "This month": [], Earlier: [] };
   const now = new Date();
@@ -73,28 +152,202 @@ function Notifications() {
     else grouped.Earlier.push(n);
   });
 
+  // Handle reply
+  const handleReply = async () => {
+    if (!replyText.trim() || !replyModal) return;
+    const user = getAuth().currentUser;
+    if (!user) return;
+
+    try {
+      // Send to friend's collection
+      await addDoc(collection(db, "users", replyModal.fromUid, "privateMessages"), {
+        fromUid: user.uid,
+        fromDisplayName: user.displayName || user.email,
+        fromProfilePicUrl: user.photoURL || defaultProfile,
+        toUid: replyModal.fromUid,
+        toDisplayName: replyModal.fromDisplayName,
+        toProfilePicUrl: replyModal.fromProfilePicUrl || defaultProfile,
+        text: replyText,
+        created: serverTimestamp(),
+      });
+
+      // Send to own collection for full history
+      await addDoc(collection(db, "users", user.uid, "privateMessages"), {
+        fromUid: user.uid,
+        fromDisplayName: user.displayName || user.email,
+        fromProfilePicUrl: user.photoURL || defaultProfile,
+        toUid: replyModal.fromUid,
+        toDisplayName: replyModal.fromDisplayName,
+        toProfilePicUrl: replyModal.fromProfilePicUrl || defaultProfile,
+        text: replyText,
+        created: serverTimestamp(),
+      });
+
+      setReplyText("");
+      setReplyModal(null);
+      alert("Reply sent!");
+    } catch (e) {
+      console.error("Reply error:", e);
+      alert("Failed to send reply.");
+    }
+  };
+
   return (
     <div style={{ maxWidth: 420, margin: "0 auto", padding: "2rem 0", background: "#fff", borderRadius: 16 }}>
+      {/* Tabs */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <h2 style={{ margin: 0 }}>Notifications</h2>
+        <div style={{ display: "flex", gap: 20 }}>
+          <button
+            onClick={() => setActiveTab("notifications")}
+            style={{
+              background: "transparent",
+              border: "none",
+              fontSize: 18,
+              fontWeight: activeTab === "notifications" ? 600 : 400,
+              color: activeTab === "notifications" ? "#222" : "#888",
+              cursor: "pointer",
+              padding: "8px 0",
+              borderBottom: activeTab === "notifications" ? "2px solid #1976d2" : "none",
+            }}
+          >
+            Notifications
+          </button>
+          <button
+            onClick={() => setActiveTab("messages")}
+            style={{
+              background: "transparent",
+              border: "none",
+              fontSize: 18,
+              fontWeight: activeTab === "messages" ? 600 : 400,
+              color: activeTab === "messages" ? "#222" : "#888",
+              cursor: "pointer",
+              padding: "8px 0",
+              borderBottom: activeTab === "messages" ? "2px solid #1976d2" : "none",
+            }}
+          >
+            Messages ({friends.length})
+          </button>
+        </div>
       </div>
-      {["Today", "Yesterday", "This month", "Earlier"].map((section) =>
-        grouped[section].length > 0 ? (
-          <div key={section} style={{ marginBottom: 18 }}>
-            <div style={{ color: "#888", fontWeight: 600, fontSize: 15, margin: "18px 0 8px 0" }}>{section}</div>
-            {grouped[section].map((notif) => (
-              <NotifItem key={notif.id} notif={notif} />
-            ))}
-            <hr style={{ border: "none", borderTop: "1px solid #eee", margin: "18px 0" }} />
+
+      {/* Notifications Tab */}
+      {activeTab === "notifications" && (
+        <>
+          {["Today", "Yesterday", "This month", "Earlier"].map((section) =>
+            grouped[section].length > 0 ? (
+              <div key={section} style={{ marginBottom: 18 }}>
+                <div style={{ color: "#888", fontWeight: 600, fontSize: 15, margin: "18px 0 8px 0" }}>{section}</div>
+                {grouped[section].map((notif) => (
+                  <NotifItem key={notif.id} notif={notif} />
+                ))}
+                <hr style={{ border: "none", borderTop: "1px solid #eee", margin: "18px 0" }} />
+              </div>
+            ) : null
+          )}
+        </>
+      )}
+
+      {/* Messages Tab */}
+      {activeTab === "messages" && (
+        <>
+          {friends.length === 0 ? (
+            <div style={{ textAlign: "center", color: "#888", padding: "2rem" }}>
+              No messages yet.
+            </div>
+          ) : (
+            friends.map((friend) => (
+              <FriendItem
+                key={friend.uid}
+                friend={friend}
+                onClick={() => navigate(`/messages/${friend.uid}`)}
+              />
+            ))
+          )}
+        </>
+      )}
+
+      {/* Reply Modal */}
+      {replyModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: 16,
+              padding: 20,
+              width: "90%",
+              maxWidth: 400,
+            }}
+          >
+            <h3 style={{ margin: "0 0 16px 0" }}>Reply to {replyModal.fromDisplayName}</h3>
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="Type your message..."
+              style={{
+                width: "100%",
+                height: 100,
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                padding: 12,
+                fontSize: 14,
+                resize: "none",
+                outline: "none",
+              }}
+            />
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button
+                onClick={handleReply}
+                style={{
+                  flex: 1,
+                  background: "#1976d2",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Send
+              </button>
+              <button
+                onClick={() => {
+                  setReplyModal(null);
+                  setReplyText("");
+                }}
+                style={{
+                  flex: 1,
+                  background: "#eee",
+                  color: "#222",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "10px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        ) : null
+        </div>
       )}
     </div>
   );
 }
 
 function NotifItem({ notif }) {
-  // Tipuri: upvote, comment
+  // Tipuri: upvote, comment, reelShared
   let text = "";
   if (notif.type === "upvote") {
     text = (
@@ -106,6 +359,12 @@ function NotifItem({ notif }) {
     text = (
       <>
         <b>{notif.actorUsername}</b> commented: "{notif.commentText}"
+      </>
+    );
+  } else if (notif.type === "reelShared") {
+    text = (
+      <>
+        <b>{notif.actorUsername}</b> shared a reel with you.
       </>
     );
   } else {
@@ -145,6 +404,42 @@ function NotifItem({ notif }) {
           {notif.isFollowing ? "Following" : "Follow"}
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function FriendItem({ friend, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        marginBottom: 12,
+        padding: "12px",
+        border: "1px solid #eee",
+        borderRadius: 12,
+        cursor: "pointer",
+        background: "#fff",
+      }}
+    >
+      <img
+        src={friend.pic || defaultProfile}
+        alt="avatar"
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          objectFit: "cover",
+          border: "2px solid #eee",
+        }}
+      />
+      <div style={{ flex: 1 }}>
+        <div style={{ color: "#222", fontSize: 15, fontWeight: 600 }}>{friend.name}</div>
+        <div style={{ color: "#555", fontSize: 14, marginTop: 2 }}>{friend.lastMessage}</div>
+        <div style={{ color: "#888", fontSize: 13, marginTop: 2 }}>{timeAgo(friend.lastTime?.toDate?.())}</div>
+      </div>
     </div>
   );
 }

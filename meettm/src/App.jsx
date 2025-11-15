@@ -12,6 +12,7 @@ import Account from './components/Account.jsx';
 import News from './components/News.jsx';
 import EventDetails from './components/EventDetails.jsx';
 import Notifications from './components/Notifications.jsx';
+import Messaging from './components/Messaging.jsx';
 import EventReelsSection from './components/EventReelsSection.jsx';
 import AIConcierge from './components/AIConcierge.jsx';
 import './App.css';
@@ -78,6 +79,7 @@ function AppWrapper() {
         <Route path="/news" element={<News />} />
         <Route path="/issue/:id" element={<EventDetails />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/messages/:friendId" element={<Messaging />} />
         <Route path="/reels" element={<EventReelsSection />} />
         <Route path="/concierge" element={<AIConcierge />} />
       </Routes>

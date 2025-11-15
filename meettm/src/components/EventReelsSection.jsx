@@ -46,23 +46,37 @@ const auth = getAuth();
 
 function EventReelsSection({ eventId }) {
   const navigate = useNavigate();
+
   const [reels, setReels] = useState([]);
   const [showRecorder, setShowRecorder] = useState(false);
   const [recording, setRecording] = useState(false);
   const [videoBlob, setVideoBlob] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+
   const [selectedEventId, setSelectedEventId] = useState(eventId);
   const [events, setEvents] = useState([]);
+
   const [showComments, setShowComments] = useState(null);
   const [newComment, setNewComment] = useState("");
   const [comments, setComments] = useState({});
-  const videoRef = useRef(null);
+
+  // SHARE state
+  const [friends, setFriends] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [shareSearch, setShareSearch] = useState("");
+  const [shareSending, setShareSending] = useState(false);
+  const [selectedFriendIds, setSelectedFriendIds] = useState([]);
+  const [shareReel, setShareReel] = useState(null);
+
+  const videoRef = useRef(null); // recorder preview
   const recorderRef = useRef(null);
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Fetch events for selection
+  const reelVideoRefs = useRef({}); // pentru play/pause pe fiecare reel
+
+  // Fetch events pentru selector
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "issues"), (snap) => {
       setEvents(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -70,61 +84,77 @@ function EventReelsSection({ eventId }) {
     return () => unsub();
   }, []);
 
-  // Load selected event from localStorage if no eventId provided
+  // Load selected event din localStorage dacă nu primim eventId din props
   useEffect(() => {
     if (!eventId) {
       const savedEventId = localStorage.getItem("selectedEventForReels");
-      if (savedEventId) {
-        setSelectedEventId(savedEventId);
-      }
+      if (savedEventId) setSelectedEventId(savedEventId);
     }
   }, [eventId]);
 
-  // Fetch reels in real-time
+  // Fetch reels + comments realtime
   useEffect(() => {
     if (!selectedEventId) return;
 
-    const q = query(
+    const qReels = query(
       collection(db, "issues", selectedEventId, "reels"),
       orderBy("created", "desc")
     );
 
-    const unsub = onSnapshot(q, (snap) => {
+    const unsubReels = onSnapshot(qReels, (snap) => {
       const reelData = snap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
       setReels(reelData);
 
-      // Fetch comments for each reel
       reelData.forEach((reel) => {
-        onSnapshot(
-          query(
-            collection(
-              db,
-              "issues",
-              selectedEventId,
-              "reels",
-              reel.id,
-              "comments"
-            ),
-            orderBy("created", "desc")
+        const qComments = query(
+          collection(
+            db,
+            "issues",
+            selectedEventId,
+            "reels",
+            reel.id,
+            "comments"
           ),
-          (commentsSnap) => {
-            setComments((prev) => ({
-              ...prev,
-              [reel.id]: commentsSnap.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              })),
-            }));
-          }
+          orderBy("created", "desc")
         );
+        onSnapshot(qComments, (commentsSnap) => {
+          setComments((prev) => ({
+            ...prev,
+            [reel.id]: commentsSnap.docs.map((d) => ({
+              id: d.id,
+              ...d.data(),
+            })),
+          }));
+        });
       });
     });
 
-    return () => unsub();
+    return () => unsubReels();
   }, [selectedEventId]);
+
+  // Fetch friends list (users) – folosit la share
+  useEffect(() => {
+    const fetchFriends = async () => {
+      try {
+        setFriendsLoading(true);
+        const snap = await getDocs(collection(db, "users"));
+        const currentUid = auth.currentUser?.uid;
+        const list = snap.docs
+          .filter((d) => d.id !== currentUid)
+          .map((d) => ({ id: d.id, ...d.data() }));
+        setFriends(list);
+      } catch (e) {
+        console.error("Error loading friends:", e);
+      } finally {
+        setFriendsLoading(false);
+      }
+    };
+
+    fetchFriends();
+  }, []);
 
   // Start recording
   const startRecording = async () => {
@@ -164,18 +194,17 @@ function EventReelsSection({ eventId }) {
     }
   };
 
-  // Stop recording
   const stopRecording = () => {
     if (recorderRef.current && recording) {
       recorderRef.current.stop();
       setRecording(false);
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current.getTracks().forEach((t) => t.stop());
       }
     }
   };
 
-  // Handle file selection
+  // File din device
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith("video/")) {
@@ -191,7 +220,7 @@ function EventReelsSection({ eventId }) {
     }
   };
 
-  // Upload reel to Firebase
+  // Upload reel in Firebase
   const uploadReel = async () => {
     const blobToUpload = videoBlob || selectedFile;
     if (!blobToUpload || !selectedEventId) return;
@@ -205,7 +234,6 @@ function EventReelsSection({ eventId }) {
     }
 
     try {
-      // Get user profile data
       let username = user.displayName || user.email;
       let profilePicUrl = user.photoURL || defaultProfile;
 
@@ -219,21 +247,21 @@ function EventReelsSection({ eventId }) {
           if (data.profilePicUrl) profilePicUrl = data.profilePicUrl;
         }
       } catch {
-        // fallback la displayName/email/photoURL
+        // fallback
       }
 
-      // Upload video to Storage
       const fileExtension = selectedFile
         ? selectedFile.name.split(".").pop()
         : "webm";
+
       const videoRefStorage = ref(
         storage,
         `reels/${selectedEventId}/${Date.now()}.${fileExtension}`
       );
+
       await uploadBytes(videoRefStorage, blobToUpload);
       const videoUrl = await getDownloadURL(videoRefStorage);
 
-      // Save to Firestore
       await addDoc(collection(db, "issues", selectedEventId, "reels"), {
         videoUrl,
         uid: user.uid,
@@ -254,7 +282,7 @@ function EventReelsSection({ eventId }) {
     setUploading(false);
   };
 
-  // Handle like
+  // Like / unlike
   const handleLike = async (reelId, likedBy = []) => {
     const user = auth.currentUser;
     if (!user) return alert("You must be logged in!");
@@ -276,7 +304,7 @@ function EventReelsSection({ eventId }) {
     }
   };
 
-  // Handle comment
+  // Comentariu nou
   const handleComment = async (reelId) => {
     if (!newComment.trim()) return;
     const user = auth.currentUser;
@@ -296,7 +324,7 @@ function EventReelsSection({ eventId }) {
           if (data.profilePicUrl) profilePicUrl = data.profilePicUrl;
         }
       } catch {
-        // fallback la displayName/email/photoURL
+        // ignore
       }
 
       await addDoc(
@@ -317,635 +345,784 @@ function EventReelsSection({ eventId }) {
     }
   };
 
+  // SHARE: toggle select friend
+  const toggleFriendSelect = (id) => {
+    setSelectedFriendIds((prev) =>
+      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
+    );
+  };
+
+  // SHARE: send reel to selected friends
+  const handleSendReel = async () => {
+    const user = auth.currentUser;
+    if (!user) return alert("You must be logged in!");
+    if (!shareReel || selectedFriendIds.length === 0) return;
+
+    setShareSending(true);
+    try {
+      // Get user profile info
+      let username = user.displayName || user.email;
+      let profilePicUrl = user.photoURL || defaultProfile;
+
+      try {
+        const userSnap = await getDocs(collection(db, "users")).then((snap) =>
+          snap.docs.find((d) => d.id === user.uid)
+        );
+        if (userSnap) {
+          const data = userSnap.data();
+          if (data.username) username = data.username;
+          if (data.profilePicUrl) profilePicUrl = data.profilePicUrl;
+        }
+      } catch {
+        // fallback
+      }
+
+      await Promise.all(
+        selectedFriendIds.map(async (friendId) => {
+          // Add to inboxReels
+          await addDoc(collection(db, "users", friendId, "inboxReels"), {
+            fromUid: user.uid,
+            fromDisplayName: username,
+            reelId: shareReel.id,
+            eventId: selectedEventId,
+            videoUrl: shareReel.videoUrl,
+            created: serverTimestamp(),
+          });
+
+          // Create notification
+          await addDoc(collection(db, "notifications"), {
+            type: "reelShared",
+            targetUid: friendId,
+            actorUid: user.uid,
+            actorUsername: username,
+            actorProfilePicUrl: profilePicUrl,
+            reelId: shareReel.id,
+            eventId: selectedEventId,
+            read: false,
+            created: serverTimestamp(),
+          });
+        })
+      );
+
+      setShareSending(false);
+      setShareReel(null);
+      setSelectedFriendIds([]);
+      setShareSearch("");
+      alert("Reel sent to your friends ✅");
+    } catch (e) {
+      console.error("Send reel error:", e);
+      setShareSending(false);
+      alert("Failed to send reel. Try again.");
+    }
+  };
+
   const currentEvent = events.find((e) => e.id === selectedEventId);
+  const userUid = auth.currentUser?.uid;
+
+  const filteredFriends =
+    shareSearch.trim().length > 0
+      ? friends.filter((f) => {
+          const target =
+            (f.username || "") +
+            " " +
+            (f.displayName || "") +
+            " " +
+            (f.email || "");
+          return target.toLowerCase().includes(shareSearch.toLowerCase());
+        })
+      : friends;
 
   return (
     <div
       style={{
         height: "100vh",
-        overflow: "hidden",
-        position: "relative",
-        background:
-          "radial-gradient(circle at top, #1f2933 0, #020617 35%, #000 100%)",
+        width: "100vw",
+        backgroundColor: "#000",
         color: "#fff",
         fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {/* Top bar with event selector + title */}
-      <div
+      {/* TOP BAR – stil Instagram web */}
+      <header
         style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 70,
+          height: 64,
+          padding: "0 24px",
           display: "flex",
           alignItems: "center",
-          padding: "0 16px",
-          zIndex: 1000,
-          backdropFilter: "blur(16px)",
-          background: "linear-gradient(90deg, rgba(15,23,42,0.92), rgba(2,6,23,0.92))",
-          borderBottom: "1px solid rgba(148,163,184,0.25)",
+          justifyContent: "space-between",
+          borderBottom: "1px solid rgba(55,65,81,0.6)",
+          background:
+            "linear-gradient(90deg, rgba(15,23,42,0.96), rgba(15,23,42,0.9))",
+          zIndex: 20,
         }}
       >
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            background: "none",
-            border: "none",
-            color: "#e5e7eb",
-            fontSize: 20,
-            cursor: "pointer",
-            marginRight: 12,
-            padding: "8px",
-            borderRadius: 8,
-            transition: "background 0.2s ease",
-          }}
-          onMouseEnter={(e) => (e.target.style.background = "rgba(148,163,184,0.2)")}
-          onMouseLeave={(e) => (e.target.style.background = "none")}
-        >
-          ←
-        </button>
-
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <span
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => navigate(-1)}
             style={{
-              fontSize: 11,
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
-              color: "#9ca3af",
+              background: "transparent",
+              border: "none",
+              color: "#e5e7eb",
+              fontSize: 22,
+              cursor: "pointer",
+              padding: 6,
+              borderRadius: 999,
             }}
           >
-            Event Reels
-          </span>
-          <span
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {currentEvent
-              ? currentEvent.title ||
-                currentEvent.description ||
-                `Event ${currentEvent.id}`
-              : "Choose an event"}
-          </span>
+            ←
+          </button>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <span
+              style={{
+                fontSize: 11,
+                letterSpacing: 1.8,
+                textTransform: "uppercase",
+                color: "#9ca3af",
+              }}
+            >
+              Event Reels
+            </span>
+            <span
+              style={{
+                fontSize: 16,
+                fontWeight: 600,
+                maxWidth: 260,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {currentEvent
+                ? currentEvent.title ||
+                  currentEvent.description ||
+                  `Event ${currentEvent.id}`
+                : "Choose an event"}
+            </span>
+          </div>
         </div>
 
         {!eventId && (
-          <div
-            style={{
-              flex: 1,
-              maxWidth: 260,
-              marginLeft: 12,
-            }}
-          >
+          <div style={{ maxWidth: 280, width: "100%" }}>
             <select
               value={selectedEventId || ""}
               onChange={(e) => {
-                const newEventId = e.target.value;
-                setSelectedEventId(newEventId);
-                localStorage.setItem("selectedEventForReels", newEventId);
+                const newId = e.target.value;
+                setSelectedEventId(newId);
+                localStorage.setItem("selectedEventForReels", newId);
               }}
               style={{
                 width: "100%",
-                padding: "8px 12px",
+                padding: "8px 14px",
                 borderRadius: 999,
-                border: "1px solid rgba(148,163,184,0.6)",
-                fontSize: 13,
-                background: "rgba(15,23,42,0.9)",
+                border: "1px solid rgba(148,163,184,0.7)",
+                background: "rgba(15,23,42,0.98)",
                 color: "#e5e7eb",
+                fontSize: 13,
                 outline: "none",
                 appearance: "none",
               }}
             >
-              <option value="">Choose an event...</option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title ||
-                    event.description ||
-                    `Event ${event.id}`}
+              <option value="">Choose an event…</option>
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.title || ev.description || `Event ${ev.id}`}
                 </option>
               ))}
             </select>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* Add Reel Floating Button */}
-      {selectedEventId && (
-        <button
-          onClick={() => setShowRecorder(true)}
-          style={{
-            position: "fixed",
-            bottom: 24,
-            right: 20,
-            width: 60,
-            height: 60,
-            borderRadius: "999px",
-            background:
-              "radial-gradient(circle at 30% 0, #f97316 0, #ea580c 30%, #b91c1c 70%, #7f1d1d 100%)",
-            border: "none",
-            color: "#fff",
-            fontSize: 30,
-            fontWeight: 500,
-            cursor: "pointer",
-            zIndex: 1000,
-            boxShadow:
-              "0 10px 30px rgba(0,0,0,0.4), 0 0 0 2px rgba(248,250,252,0.1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "transform 0.15s ease, box-shadow 0.15s ease",
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.transform = "scale(0.95)";
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-          }}
-        >
-          +
-        </button>
-      )}
-
-      {/* Reels Feed */}
-      <div
+      {/* MAIN – centru ca pe Instagram web Reels */}
+      <main
         style={{
-          height: "100vh",
-          paddingTop: 70,
-          overflowY: "scroll",
-          scrollSnapType: "y mandatory",
-          scrollBehavior: "smooth",
+          flex: 1,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "stretch",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {reels.length === 0 && selectedEventId && (
-          <div
-            style={{
-              height: "calc(100vh - 70px)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              opacity: 0.8,
-              padding: "0 24px",
-            }}
-          >
-            <div
-              style={{
-                borderRadius: 999,
-                padding: "8px 16px",
-                fontSize: 12,
-                textTransform: "uppercase",
-                letterSpacing: 1.4,
-                background: "rgba(15,23,42,0.9)",
-                border: "1px solid rgba(148,163,184,0.4)",
-                marginBottom: 16,
-              }}
-            >
-              No reels yet
-            </div>
-            <p style={{ fontSize: 16, marginBottom: 8 }}>
-              Be the first to add a reel for this event.
-            </p>
-            <p style={{ fontSize: 14, color: "#9ca3af" }}>
-              Tap the orange “+” button to upload a video or record one
-              directly.
-            </p>
-          </div>
-        )}
+        {/* fundal „vignetting” */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "radial-gradient(circle at top, rgba(15,23,42,0.8) 0, #000 40%, #000 100%)",
+            pointerEvents: "none",
+          }}
+        />
 
-        {reels.map((reel) => (
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            height: "100%",
+            width: "100%",
+            maxWidth: 900,
+            margin: "0 auto",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
           <div
-            key={reel.id}
             style={{
-              height: "calc(100vh - 70px)",
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              scrollSnapAlign: "start",
-              position: "relative",
-              padding: "16px 0",
+              height: "100%",
+              width: "100%",
+              overflowY: "scroll",
+              scrollSnapType: "y mandatory",
+              scrollBehavior: "smooth",
+              padding: "24px 0",
             }}
           >
-            <div
-              style={{
-                position: "relative",
-                width: "100%",
-                maxWidth: 420,
-                height: "100%",
-                borderRadius: 24,
-                overflow: "hidden",
-                boxShadow:
-                  "0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(148,163,184,0.4)",
-                background: "#020617",
-              }}
-            >
-              {/* Video */}
-              <video
-                src={reel.videoUrl}
+            {/* mesaj când nu sunt reels */}
+            {reels.length === 0 && selectedEventId && (
+              <div
                 style={{
-                  width: "100%",
                   height: "100%",
-                  objectFit: "cover",
-                }}
-                controls={false}
-                autoPlay
-                muted
-                loop
-                playsInline
-                onLoadedData={(e) => {
-                  const target = e.target;
-                  const observer = new IntersectionObserver(
-                    (entries) => {
-                      entries.forEach((entry) => {
-                        if (entry.isIntersecting) {
-                          target.play().catch(() => {});
-                        } else {
-                          target.pause();
-                        }
-                      });
-                    },
-                    { threshold: 0.5 }
-                  );
-                  observer.observe(target);
-                }}
-              />
-
-              {/* Gradient overlay bottom */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: "45%",
-                  background:
-                    "linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.35), transparent)",
-                  pointerEvents: "none",
-                }}
-              />
-
-              {/* Creator info + date */}
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 108,
-                  left: 16,
-                  right: 80,
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <img
-                    src={reel.profilePicUrl || defaultProfile}
-                    alt="avatar"
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: "999px",
-                      objectFit: "cover",
-                      border: "2px solid rgba(248,250,252,0.9)",
-                      boxShadow: "0 4px 16px rgba(0,0,0,0.7)",
-                    }}
-                  />
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        fontSize: 15,
-                        textShadow: "0 2px 6px rgba(0,0,0,0.8)",
-                      }}
-                    >
-                      {reel.displayName}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        opacity: 0.8,
-                        textShadow: "0 2px 6px rgba(0,0,0,0.8)",
-                      }}
-                    >
-                      {reel.created?.toDate
-                        ? reel.created.toDate().toLocaleDateString()
-                        : ""}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons - right side */}
-              <div
-                style={{
-                  position: "absolute",
-                  right: 14,
-                  bottom: 120,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
-                  gap: 18,
+                  justifyContent: "center",
+                  textAlign: "center",
+                  gap: 10,
+                  color: "#e5e7eb",
                 }}
               >
-                {/* Like */}
-                <button
-                  onClick={() => handleLike(reel.id, reel.likedBy)}
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: "999px",
-                    border: "none",
-                    background:
-                      "radial-gradient(circle at 30% 10%, #fb7185, #b91c1c)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow:
-                      "0 8px 20px rgba(0,0,0,0.6), 0 0 0 1px rgba(248,250,252,0.15)",
-                    color: "#fff",
-                    fontSize: 22,
-                    textShadow: "0 2px 8px rgba(0,0,0,0.9)",
-                  }}
-                >
-                  <span style={{ marginBottom: 2 }}>❤️</span>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>
-                    {reel.likes || 0}
-                  </span>
-                </button>
-
-                {/* Comments */}
-                <button
-                  onClick={() =>
-                    setShowComments(
-                      showComments === reel.id ? null : reel.id
-                    )
-                  }
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: "999px",
-                    border: "none",
-                    background: "rgba(15,23,42,0.85)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    boxShadow:
-                      "0 8px 20px rgba(0,0,0,0.6), 0 0 0 1px rgba(148,163,184,0.4)",
-                    color: "#fff",
-                    fontSize: 22,
-                    textShadow: "0 2px 8px rgba(0,0,0,0.9)",
-                  }}
-                >
-                  <span style={{ marginBottom: 2 }}>💬</span>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>
-                    {comments[reel.id]?.length || 0}
-                  </span>
-                </button>
-              </div>
-
-              {/* Comments bottom sheet */}
-              {showComments === reel.id && (
                 <div
                   style={{
-                    position: "absolute",
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: "rgba(15,23,42,0.98)",
-                    borderRadius: "20px 20px 0 0",
-                    padding: 16,
-                    maxHeight: "65%",
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(148,163,184,0.6)",
+                    fontSize: 11,
+                    letterSpacing: 1.8,
+                    textTransform: "uppercase",
+                    color: "#9ca3af",
+                  }}
+                >
+                  No reels yet
+                </div>
+                <p style={{ fontSize: 16 }}>Be the first to add a reel.</p>
+                <p style={{ fontSize: 13, color: "#9ca3af" }}>
+                  Tap the orange “+” button in the bottom-right corner.
+                </p>
+              </div>
+            )}
+
+            {/* fiecare reel */}
+            {reels.map((reel) => {
+              const isLiked =
+                userUid && reel.likedBy && reel.likedBy.includes(userUid);
+
+              return (
+                <section
+                  key={reel.id}
+                  style={{
+                    height: "100%",
                     display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                    zIndex: 1500,
-                    boxShadow:
-                      "0 -10px 30px rgba(0,0,0,0.7), 0 0 0 1px rgba(148,163,184,0.3)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    scrollSnapAlign: "start",
                   }}
                 >
                   <div
                     style={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 999,
-                      background: "rgba(148,163,184,0.6)",
-                      margin: "0 auto 8px",
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 6,
+                      position: "relative",
+                      width: 430,
+                      maxWidth: "70vw",
+                      aspectRatio: "9 / 16",
+                      borderRadius: 24,
+                      overflow: "hidden",
+                      boxShadow:
+                        "0 30px 80px rgba(0,0,0,0.95), 0 0 0 1px rgba(75,85,99,0.7)",
+                      backgroundColor: "#020617",
                     }}
                   >
-                    <h3
-                      style={{
-                        color: "#f9fafb",
-                        margin: 0,
-                        fontSize: 15,
-                        letterSpacing: 0.4,
+                    {/* VIDEO – click pentru play/pause ca pe Insta */}
+                    <video
+                      ref={(el) => {
+                        if (el) reelVideoRefs.current[reel.id] = el;
                       }}
-                    >
-                      Comments
-                    </h3>
-                    <button
-                      onClick={() => setShowComments(null)}
+                      src={reel.videoUrl}
                       style={{
-                        background: "none",
-                        border: "none",
-                        color: "#9ca3af",
-                        fontSize: 22,
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
                         cursor: "pointer",
                       }}
-                    >
-                      ×
-                    </button>
-                  </div>
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      onClick={() => {
+                        const v = reelVideoRefs.current[reel.id];
+                        if (!v) return;
+                        if (v.paused) v.play();
+                        else v.pause();
+                      }}
+                      onLoadedData={(e) => {
+                        const video = e.target;
+                        const observer = new IntersectionObserver(
+                          (entries) => {
+                            entries.forEach((entry) => {
+                              if (entry.isIntersecting) {
+                                video
+                                  .play()
+                                  .catch(() => {/* ignore */});
+                              } else {
+                                video.pause();
+                              }
+                            });
+                          },
+                          { threshold: 0.6 }
+                        );
+                        observer.observe(video);
+                      }}
+                    />
 
-                  {/* Comments list */}
-                  <div
-                    style={{
-                      flex: 1,
-                      overflowY: "auto",
-                      paddingRight: 4,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {comments[reel.id] && comments[reel.id].length > 0 ? (
-                      comments[reel.id].map((comment) => (
+                    {/* gradient jos */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        insetInline: 0,
+                        bottom: 0,
+                        height: "40%",
+                        background:
+                          "linear-gradient(to top, rgba(0,0,0,0.95), rgba(0,0,0,0.4), transparent)",
+                      }}
+                    />
+
+                    {/* info creator */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 16,
+                        bottom: 88,
+                        right: 90,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <img
+                        src={reel.profilePicUrl || defaultProfile}
+                        alt="avatar"
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: "999px",
+                          objectFit: "cover",
+                          border: "2px solid rgba(248,250,252,0.96)",
+                          boxShadow: "0 4px 16px rgba(0,0,0,0.9)",
+                        }}
+                      />
+                      <div>
                         <div
-                          key={comment.id}
                           style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            marginBottom: 10,
-                            padding: 10,
-                            borderRadius: 12,
-                            background: "rgba(30,64,175,0.22)",
-                            border: "1px solid rgba(129,140,248,0.35)",
+                            fontSize: 15,
+                            fontWeight: 600,
+                            textShadow: "0 2px 8px rgba(0,0,0,0.9)",
                           }}
                         >
-                          <img
-                            src={comment.profilePicUrl || defaultProfile}
-                            alt="avatar"
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: "999px",
-                              objectFit: "cover",
-                              marginRight: 10,
-                              border: "1px solid rgba(248,250,252,0.8)",
-                            }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                marginBottom: 3,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  color: "#e5e7eb",
-                                  fontWeight: 600,
-                                  fontSize: 13,
-                                }}
-                              >
-                                {comment.displayName}
-                              </span>
-                              <span
-                                style={{
-                                  color: "#9ca3af",
-                                  fontSize: 11,
-                                }}
-                              >
-                                {comment.created?.toDate
-                                  ? timeAgo(comment.created.toDate())
-                                  : ""}
-                              </span>
-                            </div>
-                            <p
-                              style={{
-                                color: "#f9fafb",
-                                margin: 0,
-                                fontSize: 13,
-                                lineHeight: 1.4,
-                              }}
-                            >
-                              {comment.text}
-                            </p>
-                          </div>
+                          {reel.displayName}
                         </div>
-                      ))
-                    ) : (
-                      <p
-                        style={{
-                          color: "#9ca3af",
-                          fontSize: 13,
-                          textAlign: "center",
-                          marginTop: 16,
-                        }}
-                      >
-                        No comments yet. Be the first to say something!
-                      </p>
-                    )}
-                  </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#d1d5db",
+                            textShadow: "0 2px 8px rgba(0,0,0,0.85)",
+                          }}
+                        >
+                          {reel.created?.toDate
+                            ? reel.created.toDate().toLocaleDateString()
+                            : ""}
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Add comment input */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder="Add a comment..."
+                    {/* coloană acțiuni – like / comment / share */}
+                    <div
                       style={{
-                        flex: 1,
-                        padding: "10px 14px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(148,163,184,0.7)",
-                        background: "rgba(15,23,42,0.95)",
-                        color: "#e5e7eb",
-                        fontSize: 13,
-                        outline: "none",
-                      }}
-                      onKeyPress={(e) =>
-                        e.key === "Enter" && handleComment(reel.id)
-                      }
-                    />
-                    <button
-                      onClick={() => handleComment(reel.id)}
-                      style={{
-                        padding: "10px 16px",
-                        borderRadius: 999,
-                        border: "none",
-                        background:
-                          "linear-gradient(135deg, #2563eb, #4f46e5)",
-                        color: "#fff",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: "pointer",
+                        position: "absolute",
+                        right: 14,
+                        bottom: 80,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 14,
                       }}
                     >
-                      Post
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+                      {/* Like */}
+                      <button
+                        onClick={() => handleLike(reel.id, reel.likedBy)}
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: "999px",
+                          border: "none",
+                          background: isLiked
+                            ? "radial-gradient(circle at 30% 0, #fb7185, #be123c)"
+                            : "radial-gradient(circle at 30% 0, #fecaca, #b91c1c)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow:
+                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(248,250,252,0.18)",
+                          color: "#fff",
+                          transition: "transform 0.12s ease",
+                        }}
+                      >
+                        <span style={{ fontSize: 22, marginBottom: 2 }}>
+                          {isLiked ? "❤️" : "🤍"}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            marginTop: -3,
+                          }}
+                        >
+                          {reel.likes || 0}
+                        </span>
+                      </button>
 
-      {/* Recorder Modal */}
+                      {/* Comments */}
+                      <button
+                        onClick={() =>
+                          setShowComments(
+                            showComments === reel.id ? null : reel.id
+                          )
+                        }
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: "999px",
+                          border: "none",
+                          background: "rgba(17,24,39,0.96)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow:
+                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.6)",
+                          color: "#fff",
+                        }}
+                      >
+                        <span style={{ fontSize: 22, marginBottom: 2 }}>💬</span>
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 600,
+                            marginTop: -3,
+                          }}
+                        >
+                          {comments[reel.id]?.length || 0}
+                        </span>
+                      </button>
+
+                      {/* Share to friends */}
+                      <button
+                        onClick={() => {
+                          setShareReel(reel);
+                          setSelectedFriendIds([]);
+                          setShareSearch("");
+                        }}
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: "999px",
+                          border: "none",
+                          background: "rgba(15,23,42,0.96)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow:
+                            "0 10px 26px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.6)",
+                          color: "#fff",
+                        }}
+                      >
+                        <span style={{ fontSize: 20, marginBottom: 2 }}>📤</span>
+                        <span
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 600,
+                            marginTop: -2,
+                          }}
+                        >
+                          Share
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Sheet comentarii */}
+                    {showComments === reel.id && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          background: "rgba(15,23,42,0.98)",
+                          borderRadius: "18px 18px 0 0",
+                          padding: 14,
+                          maxHeight: "65%",
+                          display: "flex",
+                          flexDirection: "column",
+                          boxShadow:
+                            "0 -16px 40px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.4)",
+                          zIndex: 10,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36,
+                            height: 4,
+                            borderRadius: 999,
+                            background: "rgba(148,163,184,0.7)",
+                            margin: "0 auto 8px",
+                          }}
+                        />
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: 6,
+                          }}
+                        >
+                          <h3
+                            style={{
+                              margin: 0,
+                              fontSize: 15,
+                              color: "#f9fafb",
+                              letterSpacing: 0.4,
+                            }}
+                          >
+                            Comments
+                          </h3>
+                          <button
+                            onClick={() => setShowComments(null)}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              color: "#9ca3af",
+                              fontSize: 22,
+                              cursor: "pointer",
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        <div
+                          style={{
+                            flex: 1,
+                            overflowY: "auto",
+                            paddingRight: 4,
+                            marginBottom: 8,
+                          }}
+                        >
+                          {comments[reel.id] &&
+                          comments[reel.id].length > 0 ? (
+                            comments[reel.id].map((c) => (
+                              <div
+                                key={c.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  marginBottom: 10,
+                                  padding: 8,
+                                  borderRadius: 12,
+                                  background: "rgba(30,64,175,0.25)",
+                                  border:
+                                    "1px solid rgba(129,140,248,0.35)",
+                                }}
+                              >
+                                <img
+                                  src={c.profilePicUrl || defaultProfile}
+                                  alt="avatar"
+                                  style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: "999px",
+                                    objectFit: "cover",
+                                    marginRight: 8,
+                                    border:
+                                      "1px solid rgba(248,250,252,0.9)",
+                                  }}
+                                />
+                                <div style={{ flex: 1 }}>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        color: "#e5e7eb",
+                                      }}
+                                    >
+                                      {c.displayName}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#9ca3af",
+                                      }}
+                                    >
+                                      {c.created?.toDate
+                                        ? timeAgo(c.created.toDate())
+                                        : ""}
+                                    </span>
+                                  </div>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: 13,
+                                      color: "#f9fafb",
+                                    }}
+                                  >
+                                    {c.text}
+                                  </p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <p
+                              style={{
+                                textAlign: "center",
+                                color: "#9ca3af",
+                                fontSize: 13,
+                                marginTop: 12,
+                              }}
+                            >
+                              No comments yet. Be the first!
+                            </p>
+                          )}
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            placeholder="Add a comment…"
+                            style={{
+                              flex: 1,
+                              padding: "8px 12px",
+                              borderRadius: 999,
+                              border:
+                                "1px solid rgba(148,163,184,0.7)",
+                              background: "rgba(15,23,42,0.96)",
+                              color: "#e5e7eb",
+                              fontSize: 13,
+                              outline: "none",
+                            }}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" && handleComment(reel.id)
+                            }
+                          />
+                          <button
+                            onClick={() => handleComment(reel.id)}
+                            style={{
+                              padding: "8px 14px",
+                              borderRadius: 999,
+                              border: "none",
+                              background:
+                                "linear-gradient(135deg, #2563eb, #4f46e5)",
+                              color: "#fff",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Post
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* buton + reel */}
+        {selectedEventId && (
+          <button
+            onClick={() => setShowRecorder(true)}
+            style={{
+              position: "fixed",
+              right: 28,
+              bottom: 28,
+              width: 64,
+              height: 64,
+              borderRadius: "999px",
+              border: "none",
+              background:
+                "radial-gradient(circle at 30% 0, #f97316, #ea580c 40%, #b91c1c 80%)",
+              color: "#fff",
+              fontSize: 32,
+              fontWeight: 500,
+              cursor: "pointer",
+              boxShadow:
+                "0 18px 40px rgba(0,0,0,0.95), 0 0 0 2px rgba(248,250,252,0.12)",
+              zIndex: 30,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            +
+          </button>
+        )}
+      </main>
+
+      {/* MODAL recorder / upload */}
       {showRecorder && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(15,23,42,0.95)",
+            background: "rgba(15,23,42,0.96)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 2000,
+            zIndex: 50,
             padding: 16,
           }}
         >
           <div
             style={{
               background: "rgba(15,23,42,0.98)",
-              borderRadius: 24,
-              padding: 18,
+              borderRadius: 22,
               width: "100%",
-              maxWidth: 420,
+              maxWidth: 430,
+              padding: 18,
               boxShadow:
-                "0 20px 50px rgba(0,0,0,0.9), 0 0 0 1px rgba(148,163,184,0.4)",
+                "0 24px 70px rgba(0,0,0,0.95), 0 0 0 1px rgba(148,163,184,0.45)",
             }}
           >
             <div
@@ -973,7 +1150,7 @@ function EventReelsSection({ eventId }) {
                     color: "#9ca3af",
                   }}
                 >
-                  Record live or upload a video from your device.
+                  Record with your camera or upload a video file.
                 </p>
               </div>
               <button
@@ -984,11 +1161,11 @@ function EventReelsSection({ eventId }) {
                   if (streamRef.current) {
                     streamRef.current
                       .getTracks()
-                      .forEach((track) => track.stop());
+                      .forEach((t) => t.stop());
                   }
                 }}
                 style={{
-                  background: "none",
+                  background: "transparent",
                   border: "none",
                   color: "#9ca3af",
                   fontSize: 22,
@@ -1004,35 +1181,28 @@ function EventReelsSection({ eventId }) {
                 borderRadius: 18,
                 overflow: "hidden",
                 background: "#020617",
-                border: "1px solid rgba(148,163,184,0.4)",
-                marginBottom: 14,
+                border: "1px solid rgba(148,163,184,0.45)",
+                marginBottom: 12,
               }}
             >
               <video
                 ref={videoRef}
                 style={{
                   width: "100%",
-                  height: 300,
+                  height: 320,
+                  objectFit: "cover",
                   background: "#020617",
                   display: "block",
-                  objectFit: "cover",
                 }}
                 controls={!recording}
               />
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 10,
-              }}
-            >
-              {/* File Upload */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <input
-                ref={fileInputRef}
                 type="file"
                 accept="video/*"
+                ref={fileInputRef}
                 onChange={handleFileSelect}
                 style={{ display: "none" }}
               />
@@ -1041,13 +1211,13 @@ function EventReelsSection({ eventId }) {
                 style={{
                   background:
                     "linear-gradient(135deg, #f97316, #e11d48)",
-                  color: "#fff",
                   border: "none",
                   borderRadius: 999,
                   padding: "10px 16px",
-                  cursor: "pointer",
+                  color: "#fff",
                   fontSize: 14,
                   fontWeight: 500,
+                  cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -1057,14 +1227,7 @@ function EventReelsSection({ eventId }) {
                 <span>📁</span> Choose video file
               </button>
 
-              {/* Recording Controls */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 2,
-                }}
-              >
+              <div style={{ display: "flex", gap: 10 }}>
                 {!recording ? (
                   <button
                     onClick={startRecording}
@@ -1072,13 +1235,13 @@ function EventReelsSection({ eventId }) {
                       flex: 1,
                       background:
                         "radial-gradient(circle at 20% 0, #4ade80, #16a34a)",
-                      color: "#022c22",
                       border: "none",
                       borderRadius: 999,
                       padding: "10px 16px",
-                      cursor: "pointer",
+                      color: "#022c22",
                       fontSize: 14,
                       fontWeight: 600,
+                      cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1094,13 +1257,13 @@ function EventReelsSection({ eventId }) {
                       flex: 1,
                       background:
                         "radial-gradient(circle at 20% 0, #fecaca, #b91c1c)",
-                      color: "#fef2f2",
                       border: "none",
                       borderRadius: 999,
                       padding: "10px 16px",
-                      cursor: "pointer",
+                      color: "#fef2f2",
                       fontSize: 14,
                       fontWeight: 600,
+                      cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1112,23 +1275,21 @@ function EventReelsSection({ eventId }) {
                 )}
               </div>
 
-              {/* Upload Button */}
               {(videoBlob || selectedFile) && (
                 <button
                   onClick={uploadReel}
                   disabled={uploading}
                   style={{
-                    marginTop: 2,
                     background: uploading
-                      ? "rgba(148,163,184,0.4)"
+                      ? "rgba(148,163,184,0.5)"
                       : "linear-gradient(135deg, #2563eb, #4f46e5)",
-                    color: "#fff",
                     border: "none",
                     borderRadius: 999,
                     padding: "10px 16px",
-                    cursor: uploading ? "not-allowed" : "pointer",
+                    color: "#fff",
                     fontSize: 14,
                     fontWeight: 600,
+                    cursor: uploading ? "not-allowed" : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -1139,6 +1300,282 @@ function EventReelsSection({ eventId }) {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE MODAL – trimite reel la prieteni, ca Insta */}
+      {shareReel && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            padding: 16,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              borderRadius: 20,
+              background: "rgba(15,23,42,0.98)",
+              boxShadow:
+                "0 24px 70px rgba(0,0,0,0.95), 0 0 0 1px rgba(75,85,99,0.8)",
+              padding: 16,
+              display: "flex",
+              flexDirection: "column",
+              maxHeight: "90vh",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 10,
+              }}
+            >
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: 16,
+                  color: "#f9fafb",
+                }}
+              >
+                Share reel
+              </h2>
+              <button
+                onClick={() => {
+                  setShareReel(null);
+                  setSelectedFriendIds([]);
+                  setShareSearch("");
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#9ca3af",
+                  fontSize: 22,
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* preview mic al reel-ului */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  width: 52,
+                  height: 70,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: "#020617",
+                  border: "1px solid rgba(75,85,99,0.9)",
+                  flexShrink: 0,
+                }}
+              >
+                <video
+                  src={shareReel.videoUrl}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                  muted
+                  autoPlay
+                  loop
+                  playsInline
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 13,
+                    color: "#e5e7eb",
+                  }}
+                >
+                  Send this reel to your friends.
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    color: "#9ca3af",
+                  }}
+                >
+                  Friends will receive it in their inbox.
+                </p>
+              </div>
+            </div>
+
+            {/* search friends */}
+            <div style={{ marginBottom: 8 }}>
+              <input
+                type="text"
+                placeholder="Search friends…"
+                value={shareSearch}
+                onChange={(e) => setShareSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  borderRadius: 999,
+                  border: "1px solid rgba(148,163,184,0.7)",
+                  background: "rgba(15,23,42,0.96)",
+                  color: "#e5e7eb",
+                  fontSize: 13,
+                  outline: "none",
+                }}
+              />
+            </div>
+
+            {/* friends list */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                paddingRight: 4,
+                marginBottom: 10,
+                borderRadius: 14,
+                border: "1px solid rgba(55,65,81,0.9)",
+                background: "rgba(15,23,42,0.85)",
+              }}
+            >
+              {friendsLoading ? (
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "#9ca3af",
+                    padding: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  Loading friends…
+                </p>
+              ) : filteredFriends.length === 0 ? (
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "#9ca3af",
+                    padding: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  No friends found.
+                </p>
+              ) : (
+                filteredFriends.map((f) => {
+                  const isSelected = selectedFriendIds.includes(f.id);
+                  const displayName =
+                    f.username || f.displayName || f.email || "User";
+
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => toggleFriendSelect(f.id)}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "8px 10px",
+                        background: "transparent",
+                        border: "none",
+                        borderBottom:
+                          "1px solid rgba(55,65,81,0.8)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <img
+                          src={f.profilePicUrl || defaultProfile}
+                          alt="avatar"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "999px",
+                            objectFit: "cover",
+                            border:
+                              "1px solid rgba(248,250,252,0.8)",
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: "#e5e7eb",
+                          }}
+                        >
+                          {displayName}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: "999px",
+                          border: isSelected
+                            ? "none"
+                            : "1px solid rgba(148,163,184,0.9)",
+                          background: isSelected
+                            ? "linear-gradient(135deg,#2563eb,#4f46e5)"
+                            : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 12,
+                          color: "#fff",
+                        }}
+                      >
+                        {isSelected && "✓"}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* send btn */}
+            <button
+              onClick={handleSendReel}
+              disabled={selectedFriendIds.length === 0 || shareSending}
+              style={{
+                padding: "9px 14px",
+                borderRadius: 999,
+                border: "none",
+                background:
+                  selectedFriendIds.length === 0 || shareSending
+                    ? "rgba(148,163,184,0.4)"
+                    : "linear-gradient(135deg, #2563eb, #4f46e5)",
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor:
+                  selectedFriendIds.length === 0 || shareSending
+                    ? "not-allowed"
+                    : "pointer",
+              }}
+            >
+              {shareSending
+                ? "Sending…"
+                : selectedFriendIds.length === 0
+                ? "Choose at least one friend"
+                : `Send to ${selectedFriendIds.length} friend${
+                    selectedFriendIds.length > 1 ? "s" : ""
+                  }`}
+            </button>
           </div>
         </div>
       )}
