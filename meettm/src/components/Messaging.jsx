@@ -5,6 +5,7 @@ import { getFirestore, collection, query, where, onSnapshot, addDoc, orderBy, se
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import defaultProfile from "./img/default-profile.svg";
+import AppNavigation from "./appnavigation.jsx";
 import "./Messaging.css";
 
 const app = initializeApp(firebaseConfig);
@@ -491,6 +492,7 @@ function Messaging() {
           <button onClick={sendMessage} className="primary-btn">Send</button>
         </div>
       </div>
+      <AppNavigation />
     </div>
   );
 }

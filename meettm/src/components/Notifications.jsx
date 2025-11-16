@@ -5,7 +5,7 @@ import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, add
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import defaultProfile from "./img/default-profile.svg";
-import Navbar from "./Navbar";
+import AppNavigation from "./appnavigation.jsx";
 import "./Notifications.css";
 
 const app = initializeApp(firebaseConfig);
@@ -248,7 +248,6 @@ function Notifications() {
 
   return (
     <div className="notifications-page">
-      <Navbar />
       <div className="notifications-card">
         <div className="notifications-tabs">
           <div className="tab-group">
@@ -355,6 +354,7 @@ function Notifications() {
           </div>
         </div>
       )}
+      <AppNavigation />
     </div>
   );
 }

@@ -292,7 +292,7 @@ export default function Account() {
 
   return (
     <div className="account-page">
-      <div className="account-glow glow-left" aria-hidden="true" />
+      <div className="account-glow" aria-hidden="true" />
       <div className="account-glow glow-right" aria-hidden="true" />
 
       <header className="account-hero">

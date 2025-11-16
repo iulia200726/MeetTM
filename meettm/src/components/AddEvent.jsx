@@ -6,7 +6,7 @@ import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import { getAuth } from "firebase/auth";
 import defaultProfile from "./img/default-profile.svg";
-import Navbar from "./Navbar.jsx";
+import AppNavigation from "./appnavigation.jsx";
 import "./AddEvent.css";
 
 const app = initializeApp(firebaseConfig);
@@ -192,7 +192,6 @@ function AddEvent() {
 
   return (
     <div className="add-event-page">
-      <Navbar />
       <div className="add-event-glow glow-purple" />
       <div className="add-event-glow glow-pink" />
       <form className="add-event-form" onSubmit={handleSubmit}>
@@ -325,6 +324,7 @@ function AddEvent() {
           {loading ? "Se trimite..." : "Publica evenimentul"}
         </button>
       </form>
+      <AppNavigation />
     </div>
   );
 }

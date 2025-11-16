@@ -1,9 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, query, where, getDocs, addDoc, doc, getDoc, setDoc, updateDoc, onSnapshot, orderBy, deleteDoc } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  onSnapshot,
+  deleteDoc,
+} from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import defaultProfile from "./img/default-profile.svg";
+import AppNavigation from "./appnavigation.jsx";
+import "./Friends.css";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -17,18 +32,18 @@ function Friends() {
   const user = getAuth().currentUser;
 
   useEffect(() => {
-    if (!user) return;
+    document.body.classList.add("friends-bg");
+    return () => document.body.classList.remove("friends-bg");
+  }, []);
 
-    // Fetch friends with user details
-    const friendsQuery = query(
-      collection(db, "friends"),
-      where("users", "array-contains", user.uid)
-    );
+  useEffect(() => {
+    if (!user) return;
+    const friendsQuery = query(collection(db, "friends"), where("users", "array-contains", user.uid));
     const unsubFriends = onSnapshot(friendsQuery, async (snap) => {
       const friendsList = [];
       for (const docSnap of snap.docs) {
         const friendData = docSnap.data();
-        const friendUid = friendData.users.find(uid => uid !== user.uid);
+        const friendUid = friendData.users.find((uid) => uid !== user.uid);
         if (friendUid) {
           const friendDoc = await getDoc(doc(db, "users", friendUid));
           if (friendDoc.exists()) {
@@ -36,7 +51,7 @@ function Friends() {
               id: docSnap.id,
               uid: friendUid,
               ...friendDoc.data(),
-              ...friendData
+              ...friendData,
             });
           }
         }
@@ -44,7 +59,6 @@ function Friends() {
       setFriends(friendsList);
     });
 
-    // Fetch incoming friend requests
     const incomingQuery = query(
       collection(db, "friendRequests"),
       where("toUid", "==", user.uid),
@@ -55,7 +69,6 @@ function Friends() {
       setFriendRequests(requests);
     });
 
-    // Fetch sent friend requests
     const sentQuery = query(
       collection(db, "friendRequests"),
       where("fromUid", "==", user.uid),
@@ -76,10 +89,7 @@ function Friends() {
   const handleSearch = async () => {
     if (!searchUsername.trim()) return;
     try {
-      const usersQuery = query(
-        collection(db, "users"),
-        where("username", "==", searchUsername.trim())
-      );
+      const usersQuery = query(collection(db, "users"), where("username", "==", searchUsername.trim()));
       const snap = await getDocs(usersQuery);
       if (!snap.empty) {
         const userData = snap.docs[0].data();
@@ -97,9 +107,10 @@ function Friends() {
   const handleSendRequest = async () => {
     if (!searchResult || !user) return;
     try {
-      // Check if already friends or request exists
-      const existingFriend = friends.find(f => f.users.includes(searchResult.uid));
-      const existingRequest = friendRequests.find(r => r.fromUid === searchResult.uid) || sentRequests.find(r => r.toUid === searchResult.uid);
+      const existingFriend = friends.find((f) => f.users.includes(searchResult.uid));
+      const existingRequest =
+        friendRequests.find((r) => r.fromUid === searchResult.uid) ||
+        sentRequests.find((r) => r.toUid === searchResult.uid);
       if (existingFriend || existingRequest) {
         alert("Already friends or request pending");
         return;
@@ -117,7 +128,6 @@ function Friends() {
       });
       const requestId = requestRef.id;
 
-      // Create notification for receiver
       await addDoc(collection(db, "notifications"), {
         type: "friendRequest",
         actorUid: user.uid,
@@ -126,13 +136,9 @@ function Friends() {
         targetUid: searchResult.uid,
         requestId: requestId,
         text: `${user.displayName || user.email} sent you a friend request`,
-        read: false,
-        created: new Date(),
       });
 
-      alert("Friend request sent!");
-      setSearchResult(null);
-      setSearchUsername("");
+      alert("Request sent");
     } catch (e) {
       console.error("Send request error:", e);
       alert("Error sending request");
@@ -142,27 +148,24 @@ function Friends() {
   const handleAcceptRequest = async (requestId, fromUid, fromUsername) => {
     if (!user) return;
     try {
-      // Update request status
-      await updateDoc(doc(db, "friendRequests", requestId), { status: "accepted" });
-
-      // Add to friends collection
-      await addDoc(collection(db, "friends"), {
+      await setDoc(doc(db, "friends", requestId), {
         users: [user.uid, fromUid],
         createdAt: new Date(),
+        lastInteraction: new Date(),
       });
+      await updateDoc(doc(db, "friendRequests", requestId), { status: "accepted" });
 
-      // Create notification for sender
       await addDoc(collection(db, "notifications"), {
         type: "friendAccepted",
         actorUid: user.uid,
         actorUsername: user.displayName || user.email,
+        actorProfilePicUrl: user.photoURL || defaultProfile,
         targetUid: fromUid,
-        text: `${user.displayName || user.email} accepted your friend request`,
-        read: false,
         created: new Date(),
+        text: `${user.displayName || user.email} accepted your friend request`,
       });
 
-      alert("Friend request accepted!");
+      alert("Friend added!");
     } catch (e) {
       console.error("Accept request error:", e);
       alert("Error accepting request");
@@ -172,163 +175,185 @@ function Friends() {
   const handleDeclineRequest = async (requestId) => {
     try {
       await updateDoc(doc(db, "friendRequests", requestId), { status: "declined" });
-      alert("Friend request declined!");
+      alert("Request declined");
     } catch (e) {
       console.error("Decline request error:", e);
       alert("Error declining request");
     }
   };
 
-  const handleUnfriend = async (friendId, friendUid) => {
-    if (!user) return;
+  const handleUnfriend = async (friendDocId, friendUid) => {
+    if (!window.confirm("Are you sure you want to unfriend this user?")) return;
     try {
-      // Delete the friend document
-      await deleteDoc(doc(db, "friends", friendId));
+      await deleteDoc(doc(db, "friends", friendDocId));
 
-      // Create notification for the friend
       await addDoc(collection(db, "notifications"), {
         type: "unfriend",
         actorUid: user.uid,
         actorUsername: user.displayName || user.email,
+        actorProfilePicUrl: user.photoURL || defaultProfile,
         targetUid: friendUid,
-        text: `${user.displayName || user.email} removed you from friends`,
-        read: false,
         created: new Date(),
+        text: `${user.displayName || user.email} removed you from friends`,
       });
-
-      alert("Friend removed!");
     } catch (e) {
       console.error("Unfriend error:", e);
       alert("Error removing friend");
     }
   };
 
-  return (
-    <div style={{ maxWidth: 600, margin: "0 auto", padding: "2rem 1rem" }}>
-      <h2>Friends</h2>
+  const requestsCount = friendRequests.length;
+  const sentCount = sentRequests.length;
+  const friendsCount = friends.length;
 
-      {/* Search for users */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h3>Find Friends</h3>
-        <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+  return (
+    <div className="friends-page">
+      <div className="friends-glow glow-left" aria-hidden="true" />
+      <div className="friends-glow glow-right" aria-hidden="true" />
+
+      <header className="friends-hero">
+        <p className="eyebrow">Comunitatea MeetTM</p>
+        <h1>Gestioneaza-ti prietenii si conexiunile</h1>
+        <p className="lede">
+          Cauta utilizatori, trimite cereri si ramani la curent cu prieteniile tale.
+        </p>
+        <div className="insights-grid">
+          <div className="insight-card">
+            <p className="insight-label">Cereri primite</p>
+            <div className="insight-value">{requestsCount}</div>
+            <p className="insight-meta">in asteptare</p>
+          </div>
+          <div className="insight-card">
+            <p className="insight-label">Cereri trimise</p>
+            <div className="insight-value">{sentCount}</div>
+            <p className="insight-meta">in curs</p>
+          </div>
+          <div className="insight-card">
+            <p className="insight-label">Prieteni</p>
+            <div className="insight-value">{friendsCount}</div>
+            <p className="insight-meta">conexiuni active</p>
+          </div>
+        </div>
+      </header>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Cauta</p>
+            <h3>Gaseste prieteni</h3>
+          </div>
+        </div>
+        <div className="field-row">
           <input
             type="text"
-            placeholder="Enter username"
             value={searchUsername}
             onChange={(e) => setSearchUsername(e.target.value)}
-            style={{ flex: 1, padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
+            placeholder="Introdu username"
+            className="input"
           />
-          <button
-            onClick={handleSearch}
-            style={{ padding: "10px 20px", background: "#1976d2", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-          >
-            Search
+          <button className="primary-btn" type="button" onClick={handleSearch}>
+            Cauta
           </button>
         </div>
         {searchResult && (
-          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, border: "1px solid #eee", borderRadius: 12, background: "#f9f9f9" }}>
-            <img
-              src={searchResult.profilePicUrl || defaultProfile}
-              alt="profile"
-              style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
-            />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{searchResult.username}</div>
-              <div style={{ color: "#666", fontSize: 14 }}>{searchResult.email}</div>
+          <div className="friend-card">
+            <img src={searchResult.profilePicUrl || defaultProfile} alt="profile" className="avatar" />
+            <div className="friend-info">
+              <div className="friend-name">{searchResult.username}</div>
+              <div className="friend-meta">{searchResult.email}</div>
             </div>
-            <button
-              onClick={handleSendRequest}
-              style={{ padding: "8px 16px", background: "#4caf50", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-            >
-              Send Request
+            <button className="primary-btn ghost" type="button" onClick={handleSendRequest}>
+              Trimite cerere
             </button>
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Friend Requests */}
       {friendRequests.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3>Friend Requests</h3>
-          {friendRequests.map((req) => (
-            <div key={req.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, border: "1px solid #eee", borderRadius: 12, marginBottom: 10 }}>
-              <img
-                src={req.fromProfilePicUrl || defaultProfile}
-                alt="profile"
-                style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{req.fromUsername}</div>
-              </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={() => handleAcceptRequest(req.id, req.fromUid, req.fromUsername)}
-                  style={{ padding: "8px 16px", background: "#4caf50", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-                >
-                  Accept
-                </button>
-                <button
-                  onClick={() => handleDeclineRequest(req.id)}
-                  style={{ padding: "8px 16px", background: "#f44336", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-                >
-                  Decline
-                </button>
-              </div>
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Cereri primite</p>
+              <h3>Confirma prietenii</h3>
             </div>
-          ))}
-        </div>
+          </div>
+          <div className="card-list">
+            {friendRequests.map((req) => (
+              <div key={req.id} className="friend-card">
+                <img src={req.fromProfilePicUrl || defaultProfile} alt="profile" className="avatar" />
+                <div className="friend-info">
+                  <div className="friend-name">{req.fromUsername}</div>
+                  <div className="friend-meta">Vrea sa te adauge</div>
+                </div>
+                <div className="friend-actions">
+                  <button
+                    className="pill-btn success"
+                    onClick={() => handleAcceptRequest(req.id, req.fromUid, req.fromUsername)}
+                  >
+                    Accepta
+                  </button>
+                  <button className="pill-btn danger" onClick={() => handleDeclineRequest(req.id)}>
+                    Respinge
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Sent Requests */}
       {sentRequests.length > 0 && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3>Sent Requests</h3>
-          {sentRequests.map((req) => (
-            <div key={req.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, border: "1px solid #eee", borderRadius: 12, marginBottom: 10 }}>
-              <img
-                src={req.toProfilePicUrl || defaultProfile}
-                alt="profile"
-                style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600 }}>{req.toUsername}</div>
-                <div style={{ color: "#666", fontSize: 14 }}>Pending</div>
-              </div>
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Cereri trimise</p>
+              <h3>In asteptare</h3>
             </div>
-          ))}
-        </div>
+          </div>
+          <div className="card-list">
+            {sentRequests.map((req) => (
+              <div key={req.id} className="friend-card">
+                <img src={req.toProfilePicUrl || defaultProfile} alt="profile" className="avatar" />
+                <div className="friend-info">
+                  <div className="friend-name">{req.toUsername}</div>
+                  <div className="friend-meta">Pending</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* Friends List */}
-      <div>
-        <h3>Your Friends ({friends.length})</h3>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Lista de prieteni</p>
+            <h3>Conexiuni ({friends.length})</h3>
+          </div>
+        </div>
         {friends.length === 0 ? (
-          <div style={{ textAlign: "center", color: "#888", padding: "2rem" }}>
-            No friends yet. Send some friend requests!
+          <div className="empty-state">
+            <p className="empty-title">Nu ai prieteni inca.</p>
+            <p className="empty-subtitle">Trimite cereri pentru a incepe.</p>
           </div>
         ) : (
-          friends.map((friend) => {
-            return (
-              <div key={friend.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: 12, border: "1px solid #eee", borderRadius: 12, marginBottom: 10 }}>
-                <img
-                  src={friend.profilePicUrl || defaultProfile}
-                  alt="profile"
-                  style={{ width: 44, height: 44, borderRadius: "50%", objectFit: "cover" }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>{friend.username || "Friend"}</div>
+          <div className="card-list">
+            {friends.map((friend) => (
+              <div key={friend.id} className="friend-card">
+                <img src={friend.profilePicUrl || defaultProfile} alt="profile" className="avatar" />
+                <div className="friend-info">
+                  <div className="friend-name">{friend.username || "Friend"}</div>
                 </div>
-                <button
-                  onClick={() => handleUnfriend(friend.id, friend.uid)}
-                  style={{ padding: "8px 16px", background: "#f44336", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer" }}
-                >
+                <button className="pill-btn danger" onClick={() => handleUnfriend(friend.id, friend.uid)}>
                   Unfriend
                 </button>
               </div>
-            );
-          })
+            ))}
+          </div>
         )}
-      </div>
+      </section>
+
+      <AppNavigation />
     </div>
   );
 }
