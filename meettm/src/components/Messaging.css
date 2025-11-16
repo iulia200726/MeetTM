@@ -109,16 +109,58 @@
   border-radius: 999px;
 }
 
-.msg-row {
+.msg-line {
+  width: 100%;
   display: flex;
+  padding: 0 16px;
+  flex-direction: column;
 }
 
-.msg-row.received {
+.msg-line.msg-received {
   justify-content: flex-start;
 }
 
-.msg-row.sent {
+.msg-line.msg-sent {
   justify-content: flex-end;
+}
+
+.msg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.msg-line.msg-sent .msg-stack {
+  align-items: flex-end;
+}
+
+.messagefunctionreceive,
+.messagefunctionreceivesent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.messagefunctionreceive {
+  flex-direction: row;
+}
+
+.messagefunctionreceivesent {
+  flex-direction: row-reverse;
+}
+
+.msg-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.menu-anchor {
+  position: relative;
 }
 
 .msg-bubble {
@@ -141,6 +183,11 @@
 
 .msg-bubble.reel {
   cursor: pointer;
+}
+
+.msg-line:hover .bubble-menu-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .reel-share {
@@ -203,6 +250,73 @@
 
 .msg-bubble.sent .bubble-meta {
   color: rgba(0, 0, 0, 0.7);
+}
+
+.bubble-menu-btn {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  color: #f6f7fb;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  pointer-events: none;
+}
+
+.msg-line.msg-sent .bubble-menu-btn {
+  order: -1; /* button comes before bubble */
+}
+
+.msg-line.msg-received .bubble-menu-btn {
+  order: 1; /* button after bubble */
+}
+
+.bubble-menu-btn:hover {
+  border-color: rgba(91, 214, 255, 0.4);
+}
+
+.bubble-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  min-width: 140px;
+  background: rgba(12, 10, 20, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 5;
+}
+
+.bubble-menu.anchor-left {
+  right: 0;
+}
+
+.bubble-menu.anchor-right {
+  left: 0;
+}
+
+.bubble-menu-item {
+  border: none;
+  background: transparent;
+  color: #f6f7fb;
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.bubble-menu-item:hover {
+  background: rgba(91, 214, 255, 0.12);
+  color: #fff;
 }
 
 .msg-empty {
