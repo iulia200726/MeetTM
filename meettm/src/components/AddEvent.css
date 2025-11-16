@@ -1,64 +1,39 @@
-/* Add Event - vibrant, glassy UI aligned with MeetTM gradient vibe */
-.add-event-page {
-  min-height: 100vh;
-  padding: clamp(2rem, 4vw, 2rem) clamp(2rem, 3vw, 2rem) clamp(2rem, 5vw, 2rem);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(120% 120% at 10% 10%, rgba(255, 85, 195, 0.18), transparent 50%),
-    radial-gradient(70% 70% at 90% 0%, rgba(96, 206, 255, 0.15), transparent 60%),
-    linear-gradient(145deg, #0f0c29 0%, #302b63 45%, #482579 100%);
-  color: #e9eaf8;
-  font-family: "Inter", "Poppins", system-ui, -apple-system, sans-serif;
-  padding-bottom: 20vh;
-}
-
-/* Bring the landing-style gradient behind navbar too */
 body.add-event-bg {
   background:
     radial-gradient(120% 120% at 10% 10%, rgba(255, 85, 195, 0.18), transparent 50%),
     radial-gradient(70% 70% at 90% 0%, rgba(96, 206, 255, 0.15), transparent 60%),
     linear-gradient(145deg, #0f0c29 0%, #302b63 45%, #482579 100%);
   background-attachment: fixed;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
-/* Navbar on Add Event: transparent and pinned to the page gradient */
-body.add-event-bg .navStyle {
-  width: 90%;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0.4rem 0 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  position: relative;
-  z-index: 7;
-}
-
-body.add-event-bg .nav-left .logo {
-  height: 3.6rem;
-}
-
-body.add-event-bg .navbar ul {
-  gap: clamp(1.4rem, 2.8vw, 3.2rem);
-}
-
-body.add-event-bg .navbar a,
-body.add-event-bg .navbar button {
-  font-weight: 700;
-  letter-spacing: 0.01em;
+body.add-event-bg::-webkit-scrollbar {
+  width: 10px;
   background: transparent;
 }
 
-body.add-event-bg .navbar a:hover,
-body.add-event-bg .navbar button:hover {
+body.add-event-bg::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  transform: translateY(-1px);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+body.add-event-bg::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.add-event-page {
+  min-height: 100vh;
+  padding: clamp(1.6rem, 3vw, 2.2rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  color: #e9eaf8;
+  font-family: "Inter", "Poppins", system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
 }
 
 .add-event-glow {
@@ -67,8 +42,8 @@ body.add-event-bg .navbar button:hover {
   height: 420px;
   filter: blur(110px);
   opacity: 0.45;
-  transform: rotate(-8deg);
   z-index: 0;
+  pointer-events: none;
 }
 
 .glow-purple {
@@ -87,14 +62,14 @@ body.add-event-bg .navbar button:hover {
   width: min(960px, 95vw);
   background: linear-gradient(135deg, rgba(26, 19, 68, 0.9), rgba(19, 14, 49, 0.92));
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 32px;
-  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border-radius: 28px;
+  padding: clamp(1.4rem, 3vw, 2.2rem);
   position: relative;
   z-index: 1;
   box-shadow:
     0 28px 90px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(255, 255, 255, 0.03) inset;
-  margin-top: clamp(1.5rem, 5vw, 3rem);
+  margin-top: clamp(1.2rem, 3vw, 2rem);
 }
 
 .add-event-form::before {
@@ -109,7 +84,7 @@ body.add-event-bg .navbar button:hover {
 }
 
 .add-event-header {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.2rem;
 }
 
 .eyebrow {
@@ -130,67 +105,45 @@ body.add-event-bg .navbar button:hover {
 }
 
 .lede {
-  margin: 0.35rem 0 0;
+  margin: 0.2rem 0 0;
   color: #cfd4ff;
-  font-size: 1rem;
-  line-height: 1.5;
-  max-width: 720px;
+  line-height: 1.55;
 }
 
 .field {
+  margin-bottom: 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin-bottom: 1.1rem;
+  gap: 0.35rem;
 }
 
 .field label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #d7d9ff;
+  color: #cfd4ff;
+  font-weight: 700;
 }
 
-.field-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.field-grid .field {
-  margin-bottom: 0;
-}
-
-.add-event-form input,
-.add-event-form textarea,
-.add-event-form select {
+.field input,
+.field textarea,
+.field select {
   width: 100%;
-  padding: 0.9rem 1rem;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #f7f7ff;
-  font-size: 0.98rem;
-  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  font-size: 1rem;
+  box-sizing: border-box;
 }
 
-.add-event-form input::placeholder,
-.add-event-form textarea::placeholder {
-  color: #b8bfdc;
-}
-
-.add-event-form input:focus,
-.add-event-form textarea:focus,
-.add-event-form select:focus {
-  outline: none;
-  border-color: rgba(159, 214, 255, 0.8);
-  box-shadow: 0 0 0 3px rgba(159, 214, 255, 0.2), 0 10px 30px rgba(0, 0, 0, 0.3);
-  transform: translateY(-1px);
-}
-
-.add-event-form textarea {
+.field textarea {
   min-height: 120px;
   resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus,
+.field select:focus {
+  outline: 2px solid rgba(143, 72, 255, 0.6);
 }
 
 .select-wrapper {
@@ -211,7 +164,6 @@ body.add-event-bg .navbar button:hover {
 .select-wrapper select {
   appearance: none;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.05);
 }
 
 .upload-row {
@@ -311,15 +263,20 @@ body.add-event-bg .navbar button:hover {
   box-shadow: none;
 }
 
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
 @media (max-width: 720px) {
   .add-event-form {
     border-radius: 24px;
     padding: 1.25rem;
-    margin-top: 1.25rem;
+    margin-top: 1rem;
   }
 
   .add-event-page {
     padding: 1rem;
-    padding-bottom: 15vh;
   }
 }

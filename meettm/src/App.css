@@ -1,3 +1,12 @@
+/* Global overflow fixes */
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
 /* Homepage body background */
 .homepage-bg {
   background-color: rgb(123, 41, 167); /* fallback when the video cannot play */
@@ -37,7 +46,6 @@
 .App {
   position: relative;
   min-height: 100vh;
-  overflow-x: hidden;
 }
 
 /* Background video container */

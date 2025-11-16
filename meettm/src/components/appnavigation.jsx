@@ -37,6 +37,24 @@ const NAV_LINKS = [
     ),
   },
   {
+    label: "Reels",
+    to: "/reels",
+    icon: (
+      <>
+        <path
+          d="M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"
+          fill="currentColor"
+          fillOpacity="0.12"
+        />
+        <path
+          d="M10 8.5 16 12l-6 3.5v-7Z"
+          fill="currentColor"
+          fillRule="evenodd"
+        />
+      </>
+    ),
+  },
+  {
     label: "Notificari",
     to: "/notifications",
     icon: (

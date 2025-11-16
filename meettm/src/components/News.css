@@ -11,6 +11,23 @@ body.news-bg {
     linear-gradient(145deg, #0f0c29 0%, #302b63 45%, #482579 100%);
   background-attachment: fixed;
   overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+body.news-bg::-webkit-scrollbar {
+  width: 10px;
+  background: transparent;
+}
+
+body.news-bg::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+body.news-bg::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .news-page {

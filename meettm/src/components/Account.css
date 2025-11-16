@@ -4,6 +4,24 @@ body.account-bg {
     radial-gradient(70% 70% at 90% 0%, rgba(96, 206, 255, 0.15), transparent 60%),
     linear-gradient(145deg, #0f0c29 0%, #302b63 45%, #482579 100%);
   background-attachment: fixed;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+body.account-bg::-webkit-scrollbar {
+  width: 10px;
+  background: transparent;
+}
+
+body.account-bg::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.08);
+}
+
+body.account-bg::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .account-page {
