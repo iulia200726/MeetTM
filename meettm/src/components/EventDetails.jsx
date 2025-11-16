@@ -79,6 +79,7 @@ function EventDetails() {
 
   const incrementedRef = useRef(false);
 
+
   useEffect(() => {
     const fetchIssue = async () => {
       const docRef = doc(db, "issues", id);
