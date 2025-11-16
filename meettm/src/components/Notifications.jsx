@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getAuth } from "firebase/auth";
 import { getFirestore, collection, query, where, onSnapshot, doc, updateDoc, addDoc, orderBy, serverTimestamp } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
@@ -36,6 +36,16 @@ function Notifications() {
   const user = getAuth().currentUser;
   const markedAsRead = useRef(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // switch tab if query tab=messages
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tab = params.get("tab");
+    if (tab === "messages") {
+      setActiveTab("messages");
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (!user) return;

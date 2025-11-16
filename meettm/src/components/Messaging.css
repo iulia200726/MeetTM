@@ -12,7 +12,7 @@
 }
 
 .messaging-page {
-  min-height: calc(100vh - var(--nav-height, 7rem));
+  min-height: 100vh;
   padding: clamp(1.5rem, 4vw, 3.25rem);
   background: radial-gradient(circle at 10% -10%, rgba(124, 73, 255, 0.32), transparent 32%),
     radial-gradient(circle at 80% 20%, rgba(91, 214, 255, 0.22), transparent 30%),
@@ -164,7 +164,15 @@
 }
 
 .msg-bubble {
-  max-width: 72%;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: auto;
+  min-width: fit-content;
+   max-width: 70%;
+  flex-shrink: 1;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   padding: 12px 14px;
   border-radius: 16px;
   font-size: 14px;
@@ -186,6 +194,11 @@
 }
 
 .msg-line:hover .bubble-menu-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bubble-menu-btn.active {
   opacity: 1;
   pointer-events: auto;
 }

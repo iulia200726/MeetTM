@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getFirestore, collection, query, where, onSnapshot, addDoc, orderBy, serverTimestamp, doc, getDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { getFirestore, collection, query, where, onSnapshot, addDoc, orderBy, serverTimestamp, doc, getDoc, deleteDoc, getDocs, setDoc } from "firebase/firestore";
 import { initializeApp } from "firebase/app";
 import { firebaseConfig } from "../firebase/config";
 import defaultProfile from "./img/default-profile.svg";
@@ -34,15 +34,34 @@ function Messaging() {
   const [friendData, setFriendData] = useState(null);
   const [newMessage, setNewMessage] = useState("");
   const [menuOpenFor, setMenuOpenFor] = useState(null);
+  const [cardWidth, setCardWidth] = useState(null);
+  const [shrinkStyles, setShrinkStyles] = useState({});
   const messagesEndRef = useRef(null);
   const pendingMapRef = useRef(new Map());
   const cacheKey = friendId ? `msgs-${authUser?.uid || "anon"}-${friendId}` : null;
+  const cardRef = useRef(null);
 
   // Keep user in sync on refresh
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (u) => setAuthUser(u));
     return () => unsubAuth();
   }, [auth]);
+
+  // Track messaging card width for bubble max-width calculations
+  useEffect(() => {
+    if (!cardRef.current) return;
+    const updateWidth = () => {
+      setCardWidth(cardRef.current?.getBoundingClientRect()?.width || null);
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(cardRef.current);
+    window.addEventListener("resize", updateWidth);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, []);
 
   useEffect(() => {
     if (!authUser || !friendId) return;
@@ -172,6 +191,10 @@ function Messaging() {
 
     const clientId = crypto.randomUUID ? crypto.randomUUID() : `c-${Date.now()}-${Math.random()}`;
     const tempId = `temp-${Date.now()}`;
+    const baseId = generateShortId();
+    const myMessageId = `${baseId}S`;
+    const friendMessageId = `${baseId}R`;
+
     const optimistic = {
       id: tempId,
       direction: "sent",
@@ -191,7 +214,7 @@ function Messaging() {
     pendingMapRef.current.set(tempId, { realId: null });
 
     try {
-      await addDoc(collection(db, "users", friendId, "privateMessages"), {
+      await setDoc(doc(db, "users", friendId, "privateMessages", friendMessageId), {
         fromUid: authUser.uid,
         fromDisplayName: authUser.displayName || authUser.email,
         fromProfilePicUrl: authUser.photoURL || defaultProfile,
@@ -203,7 +226,7 @@ function Messaging() {
         clientId,
       });
 
-      const docRef = await addDoc(collection(db, "users", authUser.uid, "privateMessages"), {
+      await setDoc(doc(db, "users", authUser.uid, "privateMessages", myMessageId), {
         fromUid: authUser.uid,
         fromDisplayName: authUser.displayName || authUser.email,
         fromProfilePicUrl: authUser.photoURL || defaultProfile,
@@ -215,10 +238,10 @@ function Messaging() {
         clientId,
       });
 
-      pendingMapRef.current.set(tempId, { realId: docRef.id });
+      pendingMapRef.current.set(tempId, { realId: myMessageId });
       // replace optimistic id with real id so snapshots dedupe
       setMessages((prev) => {
-        const updated = prev.map((m) => (m.id === tempId ? { ...m, id: docRef.id, pending: false } : m));
+        const updated = prev.map((m) => (m.id === tempId ? { ...m, id: myMessageId, pending: false } : m));
         const map = new Map();
         updated.forEach((m) => map.set(m.id, m));
         return Array.from(map.values()).sort(
@@ -250,6 +273,7 @@ function Messaging() {
   // Unsend for everyone (best-effort using clientId)
   const handleUnsend = async (msg) => {
     if (!authUser) return;
+    if (!canUnsend(msg)) return;
     try {
       // delete own copy
       await deleteDoc(doc(db, "users", authUser.uid, "privateMessages", msg.id));
@@ -273,13 +297,90 @@ function Messaging() {
   const peerName = friendData?.displayName || friendData?.email || "Conversation";
   const peerAvatar = friendData?.photoURL || defaultProfile;
 
+  const getBubbleStyle = (msg) => {
+    if (!cardWidth) return undefined;
+    const clampWidth = Math.max(200, cardWidth * 0.6);
+    return { maxWidth: `${clampWidth}px` };
+  };
+
+  const getIdClass = (id) => {
+    if (!id) return "";
+    const safe = String(id).replace(/[^a-zA-Z0-9_-]/g, "-");
+    return `msg-id-${safe}`;
+  };
+
+  const generateShortId = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let out = "";
+    for (let i = 0; i < 6; i += 1) {
+      const idx = Math.floor(Math.random() * chars.length);
+      out += chars[idx];
+    }
+    return out;
+  };
+
+  const canUnsend = (msg) => {
+    const created = msg?.created?.toDate?.() || msg?.created;
+    if (!created) return false;
+    try {
+      const createdMs = created instanceof Date ? created.getTime() : new Date(created).getTime();
+      if (Number.isNaN(createdMs)) return false;
+      const diff = Date.now() - createdMs;
+      return diff <= 30 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  };
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpenFor) return;
+    const handler = (e) => {
+      const anchor = e.target.closest(".menu-anchor");
+      if (!anchor) {
+        setMenuOpenFor(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpenFor]);
+
+  // Measure bubbles and shrink any that exceed the card width
+  useEffect(() => {
+    if (!cardWidth) return;
+    requestAnimationFrame(() => {
+      const nextStyles = {};
+      messages.forEach((msg) => {
+        const cls = getIdClass(msg.id);
+        if (!cls) return;
+        const node = document.querySelector(`.${cls}`);
+        if (!node) return;
+        const bubbleWidth = node.getBoundingClientRect().width;
+        if (bubbleWidth > cardWidth * 0.9) {
+          nextStyles[msg.id] = `${Math.floor(cardWidth * 0.9)}px`;
+        }
+      });
+      setShrinkStyles((prev) => {
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(nextStyles);
+        if (
+          prevKeys.length === nextKeys.length &&
+          prevKeys.every((k) => prev[k] === nextStyles[k])
+        ) {
+          return prev;
+        }
+        return nextStyles;
+      });
+    });
+  }, [messages, cardWidth]);
+
   return (
     <div className="messaging-page">
-      <div className="messaging-card">
+      <div className="messaging-card" ref={cardRef}>
         <div className="msg-header">
           <button
             className="icon-btn ghost"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate("/notifications?tab=messages")}
             aria-label="Back"
           >
             ←
@@ -293,7 +394,6 @@ function Messaging() {
               <div className="peer-sub">Direct messages</div>
             </div>
           </div>
-          <button className="ghost-btn small" onClick={() => navigate("/notifications")}>Notifications</button>
         </div>
 
         <div className="msg-feed">
@@ -304,11 +404,18 @@ function Messaging() {
             </div>
           ) : (
             messages.map((msg) => (
-              <div key={msg.id} className={`msg-line ${msg.direction === "sent" ? "msg-sent" : "msg-received"}`}>
+              <div
+                key={msg.id}
+                className={`msg-line ${msg.direction === "sent" ? "msg-sent" : "msg-received"} ${getIdClass(msg.id)}`}
+              >
                 <div className={`msg-stack ${msg.direction === "sent" ? "messagesent" : "messagereceive"}`}>
                   <div className={msg.direction === "sent" ? "messagefunctionreceivesent" : "messagefunctionreceive"}>
                     <div
-                      className={`msg-bubble ${msg.direction === "sent" ? "sent" : "received"} ${msg.type === "reel" ? "reel" : ""}`}
+                      className={`msg-bubble ${msg.direction === "sent" ? "sent" : "received"} ${msg.type === "reel" ? "reel" : ""} ${getIdClass(msg.id)}`}
+                      style={{
+                        ...getBubbleStyle(msg),
+                        ...(shrinkStyles[msg.id] ? { maxWidth: shrinkStyles[msg.id] } : {}),
+                      }}
                       onClick={() => {
                         if (msg.type === "reel") navigate("/reels");
                       }}
@@ -336,17 +443,23 @@ function Messaging() {
 
                     <div className={`msg-actions ${msg.direction === "sent" ? "messagefunctionreceivesent" : "messagefunctionreceive"}`}>
                       <div className="menu-anchor">
-                        <button
-                          className="bubble-menu-btn"
-                          aria-label="Open message menu"
-                          onClick={() => setMenuOpenFor((prev) => (prev === msg.id ? null : msg.id))}
-                        >
-                          ⋯
-                        </button>
+                      <button
+                        className="bubble-menu-btn"
+                        aria-label="Open message menu"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenFor((prev) => (prev === msg.id ? null : msg.id));
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        data-msg-id={msg.id}
+                        style={menuOpenFor === msg.id ? { opacity: 1, pointerEvents: "auto" } : undefined}
+                      >
+                        ⋯
+                      </button>
 
                         {menuOpenFor === msg.id && (
                           <div className={`bubble-menu ${msg.direction === "sent" ? "anchor-left" : "anchor-right"}`}>
-                            {msg.direction === "sent" && (
+                            {msg.direction === "sent" && canUnsend(msg) && (
                               <button className="bubble-menu-item" onClick={() => handleUnsend(msg)}>
                                 Unsend
                               </button>
