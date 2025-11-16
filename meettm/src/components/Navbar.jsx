@@ -16,7 +16,8 @@ function Navbar() {
   const navigate = useNavigate();
   const [profilePic, setProfilePic] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [showAccountMenu, setShowAccountMenu] = useState(false); // 👈 nou
+  const [showAccountMenu, setShowAccountMenu] = useState(false); // dY`^ nou
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Poza de profil
   useEffect(() => {
@@ -77,16 +78,21 @@ function Navbar() {
     setShowAccountMenu((prev) => !prev);
   };
 
+  const closeMenus = () => {
+    setIsMenuOpen(false);
+    setShowAccountMenu(false);
+  };
+
   return (
     <div className="navStyle">
-      {/* 🔹 Stânga: logo */}
+      {/* dY"1 Stânga: logo */}
       <div className="nav-left">
         <Link to="/">
           <img className="logo" src={Logo} alt="Logo" />
         </Link>
       </div>
 
-      {/* 🔹 Centru: LastEvents (ul-ul tău) */}
+      {/* dY"1 Centru: LastEvents (ul-ul tău) */}
       <div className="nav-center">
         <ul className="last-events">
           {/* aici vei pune ultimele evenimente */}
@@ -94,17 +100,28 @@ function Navbar() {
       </div>
       {/* Dreapta: restul link-urilor / butoanelor */}
       <nav className="navbar nav-right">
-        <ul>
+        <button
+          className={`burger ${isMenuOpen ? "is-open" : ""}`}
+          type="button"
+          aria-label="Deschide meniul"
+          onClick={() => setIsMenuOpen((prev) => !prev)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <ul className={isMenuOpen ? "mobile-open" : ""}>
           {isAuthenticated ? (
             <>
               <li>
-                <Link to="/dashboard">Open App</Link>
+                <Link to="/dashboard" onClick={closeMenus}>Open App</Link>
               </li>
 
               <li style={{ position: "relative" }}>
                 <Link
                   to="/notifications"
                   style={{ position: "relative", display: "inline-block" }}
+                  onClick={closeMenus}
                 >
                   Notifications
                   {unreadCount > 0 && (
@@ -114,16 +131,16 @@ function Navbar() {
               </li>
 
               <li>
-                <Link to="/news">All Events</Link>
+                <Link to="/news" onClick={closeMenus}>All Events</Link>
               </li>
 
               <li>
-                <Link to="/friends">Friends</Link>
+                <Link to="/friends" onClick={closeMenus}>Friends</Link>
               </li>
 
-              <li>
-                <Link to="/concierge">Plan my night</Link>
-              </li>
+              {/* <li>
+                <Link to="/concierge" onClick={closeMenus}>Plan my night</Link>
+              </li> */}
 
               {/* Account (avatar) + pop-up */}
               <li className="account-li">
@@ -168,14 +185,14 @@ function Navbar() {
           ) : (
             <>
               <li>
-                <Link to="/login">Login</Link>
+                <Link to="/login" onClick={closeMenus}>Login</Link>
               </li>
               <li>
-                <Link to="/signup">Sign up</Link>
+                <Link to="/signup" onClick={closeMenus}>Sign up</Link>
               </li>
-              <li>
-                <Link to="/concierge">Plan my night</Link>
-              </li>
+              {/* <li>
+                <Link to="/concierge" onClick={closeMenus}>Plan my night</Link>
+              </li> */}
             </>
           )}
         </ul>
@@ -185,8 +202,3 @@ function Navbar() {
 }
 
 export default Navbar;
-
-
-
-
-

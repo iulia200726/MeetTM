@@ -9,23 +9,23 @@ import { Link } from 'react-router-dom';
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Textele afiÈ™ate Ã®n hero, fiecare pe cÃ¢te un <p>
+
 const HERO_TEXTS = [
   "Cultural Events",
   "Concerts",
   "Parties",
-  "On MeetTM, youâ€™ll find what suits you",
-  "Come and party"
+  "On MeetTM, you'll find what suits you!",
+  "Come and... party!"
 ];
 
-// pentru a aproxima ~3 secunde la È™tergere
+
 const TOTAL_CHARS = HERO_TEXTS.reduce((sum, t) => sum + t.length, 0);
 const DELETE_DURATION_MS = 3000;
 const DELETE_INTERVAL =
-  TOTAL_CHARS > 0 ? DELETE_DURATION_MS / TOTAL_CHARS : 60; // ms per literÄƒ
+  TOTAL_CHARS > 0 ? DELETE_DURATION_MS / TOTAL_CHARS : 60; 
 
-const TYPE_INTERVAL = 120; // ms per literÄƒ la scriere
-const LINE_PAUSE = 900;    // pauzÄƒ Ã®ntre linii la scriere
+const TYPE_INTERVAL = 120; 
+const LINE_PAUSE = 900;   
 
 function LandingPage() {
   const [complaint, setComplaint] = useState('');
@@ -34,12 +34,12 @@ function LandingPage() {
   const [error, setError] = useState('');
   const [issues, setIssues] = useState([]);
 
-  // fazele animaÈ›iei: "typing" | "hold" | "deleting" | "pause"
-  const [phase, setPhase] = useState("typing");
-  const [currentIndex, setCurrentIndex] = useState(0); // linia curentÄƒ
-  const [charIndex, setCharIndex] = useState(0);       // cÃ¢te caractere sunt afiÈ™ate din linia curentÄƒ
 
-  // ðŸ“ TYPEWRITER â€“ scrie textele linie cu linie
+  const [phase, setPhase] = useState("typing");
+  const [currentIndex, setCurrentIndex] = useState(0); 
+  const [charIndex, setCharIndex] = useState(0);      
+
+
   useEffect(() => {
     if (phase !== "typing") return;
     if (HERO_TEXTS.length === 0) return;
@@ -47,7 +47,7 @@ function LandingPage() {
     const currentText = HERO_TEXTS[currentIndex] || "";
     const isLastLine = currentIndex === HERO_TEXTS.length - 1;
 
-    // dacÄƒ suntem pe ultima linie È™i e complet scrisÄƒ â†’ trecem Ã®n HOLD
+
     if (isLastLine && charIndex === currentText.length) {
       setPhase("hold");
       return;
@@ -56,12 +56,12 @@ function LandingPage() {
     let timeout;
 
     if (charIndex < currentText.length) {
-      // scriem linia curentÄƒ literÄƒ cu literÄƒ
+
       timeout = setTimeout(() => {
         setCharIndex((prev) => prev + 1);
       }, TYPE_INTERVAL);
     } else {
-      // linia curentÄƒ e completÄƒ, mergem la urmÄƒtoarea dupÄƒ o pauzÄƒ scurtÄƒ
+    
       timeout = setTimeout(() => {
         setCurrentIndex((prev) => prev + 1);
         setCharIndex(0);
@@ -71,17 +71,17 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase, currentIndex, charIndex]);
 
-  // ðŸ” FAZE: hold (5s) â†’ deleting (~3s) â†’ pause (0.5s) â†’ typing
+
   useEffect(() => {
     let timeout;
 
     if (phase === "hold") {
-      // 5 secunde cu textul complet pe ecran
+
       timeout = setTimeout(() => {
         setPhase("deleting");
       }, 5000);
     } else if (phase === "pause") {
-      // 0.5 secunde text gol, apoi restart
+
       timeout = setTimeout(() => {
         setCurrentIndex(0);
         setCharIndex(0);
@@ -92,7 +92,7 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase]);
 
-  // ðŸ”™ DELETING â€“ È™terge literele una cÃ¢te una, de jos Ã®n sus
+
   useEffect(() => {
     if (phase !== "deleting") return;
     if (HERO_TEXTS.length === 0) return;
@@ -101,14 +101,14 @@ function LandingPage() {
     let timeout;
 
     if (charIndex > 0) {
-      // È™tergem din linia curentÄƒ, literÄƒ cu literÄƒ
+
       timeout = setTimeout(() => {
         setCharIndex((prev) => prev - 1);
       }, DELETE_INTERVAL);
     } else {
-      // linia curentÄƒ a ajuns la 0 caractere
+   
       if (currentIndex > 0) {
-        // trecem la linia de deasupra (precedentÄƒ), full, apoi o È™tergem
+     
         const prevLineIndex = currentIndex - 1;
         const prevLen = HERO_TEXTS[prevLineIndex].length;
 
@@ -117,7 +117,7 @@ function LandingPage() {
           setCharIndex(prevLen);
         }, DELETE_INTERVAL);
       } else {
-        // am È™ters È™i prima linie (tot textul e gol)
+     
         setPhase("pause");
       }
     }
@@ -125,14 +125,14 @@ function LandingPage() {
     return () => clearTimeout(timeout);
   }, [phase, currentIndex, charIndex]);
 
-  // Ce text afiÈ™Äƒm pe linia `index` Ã®n funcÈ›ie de fazÄƒ
+
   const getDisplayedText = (index) => {
     if (phase === "pause") {
       return "";
     }
 
     if (phase === "hold") {
-      // Ã®n hold totul e complet vizibil
+
       return HERO_TEXTS[index];
     }
 
@@ -142,24 +142,24 @@ function LandingPage() {
       } else if (index === currentIndex) {
         return HERO_TEXTS[index].slice(0, charIndex); // linia care se scrie
       } else {
-        return ""; // liniile dupÄƒ cea curentÄƒ
+        return ""; 
       }
     }
 
     if (phase === "deleting") {
       if (index < currentIndex) {
-        return HERO_TEXTS[index]; // Ã®ncÄƒ pline, urmeazÄƒ sÄƒ fie È™terse
+        return HERO_TEXTS[index];
       } else if (index === currentIndex) {
-        return HERO_TEXTS[index].slice(0, charIndex); // se È™terge litera cu litera
+        return HERO_TEXTS[index].slice(0, charIndex); 
       } else {
-        return ""; // liniile de dedesubt au fost deja È™terse
+        return ""; 
       }
     }
 
     return "";
   };
 
-  // --- Firestore: citire issues pentru hartÄƒ ---
+
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, "issues"),
@@ -197,7 +197,7 @@ function LandingPage() {
       setCategory(data.categorie || 'Unknown');
     } catch (err) {
       console.error(err);
-      setError('A apÄƒrut o eroare la trimiterea cererii.');
+      setError('An error occurred while sending the request.');
     } finally {
       setLoading(false);
     }
@@ -206,7 +206,7 @@ function LandingPage() {
   return (
     <div className="LandingPage">
       <div className="hero">
-        {/* ðŸ”¹ Text stÃ¢nga */}
+      
         <div className="text_content">
           <div className="hero-lines">
             {HERO_TEXTS.map((text, index) => (
@@ -214,7 +214,7 @@ function LandingPage() {
                 <span className="typewriter-text">
                   {getDisplayedText(index)}
                 </span>
-                {/* cursorul clipeÈ™te mereu pe linia curentÄƒ */}
+              
                 {index === currentIndex && (
                   <span className="typewriter-cursor">|</span>
                 )}
@@ -223,16 +223,15 @@ function LandingPage() {
           </div>
 
           <div className="hero-subtext">
-            Testeaza noul AI Concierge: completeaza preferintele si Gemini iti livreaza traseul pentru seara.
+           Test the new AI Concierge: fill in your preferences and Gemini delivers your itinerary for the evening.
           </div>
           <div className="concierge-cta">
             <Link to="/concierge" className="concierge-btn">Plan my night</Link>
-            <span className="concierge-caption">1 minut pana la un plan gata de trimis prietenilor.</span>
           </div>
 
         </div>
 
-        {/* ðŸ”¹ HartÄƒ dreapta */}
+   
         <div className="map-view">
 
           <GoogleMapView markers={issues} />
